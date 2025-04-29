@@ -8,7 +8,7 @@ from pyrogram.types import ChatPrivileges, Message
 API_HASH = os.getenv("API_HASH")
 API_ID = os.getenv("API_ID")
 SESSION_STRING = os.getenv("SESSION_STRING")
-SOURCE_CHANNEL_LINK = input("Enter Source channel link:\n")
+SOURCE_CHANNEL_LINK = os.getenv("SOURCE_CHANNEL_LINK")
 
 
 class ChannelCopier:
