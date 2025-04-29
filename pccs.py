@@ -104,7 +104,7 @@ class ChannelCopier:
         except Exception as e:
             print(f"Error copying video: {e}")
         else:
-            if os.path.exists(path)
+            if os.path.exists(path):
                 os.remove(path)
 
     async def archive_existing_videos(self):
