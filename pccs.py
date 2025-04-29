@@ -1,11 +1,14 @@
 import asyncio
-import re
+import os
 
 from pyrogram import Client, enums, filters
 from pyrogram.errors import ChannelInvalid, FloodWait
 from pyrogram.types import ChatPrivileges, Message
 
-from conf import API_HASH, API_ID, SESSION_STRING, SOURCE_CHANNEL_LINK
+API_HASH = os.getenv("API_HASH")
+API_ID = os.getenv("API_ID")
+SESSION_STRING = os.getenv("SESSION_STRING")
+SOURCE_CHANNEL_LINK = input("Enter Source channel link:\n")
 
 
 class ChannelCopier:
@@ -100,6 +103,9 @@ class ChannelCopier:
             await asyncio.sleep(e.value)
         except Exception as e:
             print(f"Error copying video: {e}")
+        else:
+            if os.path.exists(path)
+                os.remove(path)
 
     async def archive_existing_videos(self):
         print("Archiving historical videos...")
