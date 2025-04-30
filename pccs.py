@@ -17,11 +17,11 @@ MASTER_CHAT_USERNAME = os.getenv("MASTER_CHAT_USERNAME")
 class ChannelCopier:
     def __init__(self):
         self.app = Client(
-            "channel_copier",
+            "my_userbot",
             api_id=API_ID,
             api_hash=API_HASH,
-            session_string=SESSION_STRING,
-            in_memory=True,  # Important for mobile devices
+            # session_string=SESSION_STRING,
+            # in_memory=True,  # Important for mobile devices
         )
 
     async def start(self):
