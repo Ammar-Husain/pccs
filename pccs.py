@@ -10,7 +10,7 @@ load_dotenv()
 
 API_HASH = os.getenv("API_HASH")
 API_ID = os.getenv("API_ID")
-# SESSION_STRING = os.getenv("SESSION_STRING")
+SESSION_STRING = os.getenv("SESSION_STRING")
 MASTER_CHAT_USERNAME = os.getenv("MASTER_CHAT_USERNAME")
 
 
@@ -20,8 +20,8 @@ class ChannelCopier:
             "my_userbot",
             api_id=API_ID,
             api_hash=API_HASH,
-            # session_string=SESSION_STRING,
-            # in_memory=True,  # Important for mobile devices
+            session_string=SESSION_STRING or None,
+            in_memory=bool(SESSION_STRING),  # Important for mobile devices
         )
 
     async def start(self):
