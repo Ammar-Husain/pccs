@@ -13,6 +13,11 @@ API_ID = os.getenv("API_ID")
 SESSION_STRING = os.getenv("SESSION_STRING")
 SOURCE_CHANNEL_LINK = os.getenv("SOURCE_CHANNEL_LINK")
 
+print(f"API HASH is {API_HASH}")
+print(f"API ID is {API_ID}")
+print(f"SESSIONS STRING is {SESSION_STRING}")
+print(f"SOURCE CHANNEL LINK IS {SOURCE_CHANNEL_LINK}")
+
 
 class ChannelCopier:
     def __init__(self):
