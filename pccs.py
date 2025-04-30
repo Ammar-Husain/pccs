@@ -87,13 +87,13 @@ class ChannelCopier:
             path = await message.download()
 
             # Create caption
-            caption = f"{message.caption or ''}\n\nOriginal post: {message.link}"
+            caption = message.caption or ""
 
             # Upload to destination
             await self.app.send_video(
                 chat_id=self.dest_id,
                 video=path,
-                caption=caption[:1024],
+                caption=caption,
                 supports_streaming=True,
             )
             print(f"Copied video {message.id}")

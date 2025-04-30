@@ -1,3 +1,4 @@
 __pycache__/
-conf.py
 my_userbot.session
+.env
+downloads/
