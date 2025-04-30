@@ -54,15 +54,27 @@ class ChannelCopier:
             self.source_id = await self.resolve_channel_id(link)
         except Exception as e:
             print(f"Failed to resolve channel: {e}")
+            await client.send_message(message.from_user.id, "Invalid channel link")
             return
 
         print(f"Source channel ID: {self.source_id}")
+
+        await client.send_message(
+            message.from_user.id, "Task recived, channel found, starting process..."
+        )
 
         # Create destination channel
         self.dest_id = await self.create_destination_channel()
         print(f"Destination channel ID: {self.dest_id}")
 
         await self.archive_existing_videos()
+
+        dest_chat = await client.get_chat(self.dest_id)
+        dest_chat_link = dest_chat.invite_link
+
+        await client.send_message(
+            message.from_user.id, f"Mission Completed, here you are {dest_chat_link}"
+        )
 
     async def resolve_channel_id(self, link):
         try:
