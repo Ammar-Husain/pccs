@@ -11,12 +11,7 @@ load_dotenv()
 API_HASH = os.getenv("API_HASH")
 API_ID = os.getenv("API_ID")
 SESSION_STRING = os.getenv("SESSION_STRING")
-SOURCE_CHANNEL_LINK = os.getenv("SOURCE_CHANNEL_LINK")
-
-print(f"API HASH is {API_HASH}")
-print(f"API ID is {API_ID}")
-print(f"SESSIONS STRING is {SESSION_STRING}")
-print(f"SOURCE CHANNEL LINK IS {SOURCE_CHANNEL_LINK}")
+MASTER_CHAT_USERNAME = os.getenv("MASTER_CHAT_USERNAME")
 
 
 class ChannelCopier:
@@ -34,31 +29,44 @@ class ChannelCopier:
     async def start(self):
         await self.app.start()
         print("Bot started successfully!")
+        print("The Bot is awaiting for the command from the master")
 
-        # Resolve source channel
-        self.source_id = await self.resolve_channel_id()
+        self.app.add_handler(
+            self.app.on_message(filters.chat(MASTER_CHAT_USERNAME) & filters.text)(
+                self.do_if_command
+            )
+        )
+
+        # Keep running
+        await self.idle()
+
+    async def do_if_command(self, client: Client, message: Message):
+        print("A message came from the master")
+
+        if message.text[0:3] == "***":
+            print("the message is a command")
+        else:
+            print("The message is not a command")
+            return
+
+        link = message.text[3:]
+        try:
+            self.source_id = await self.resolve_channel_id(link)
+        except Exception as e:
+            print(f"Failed to resolve channel: {e}")
+            return
+
         print(f"Source channel ID: {self.source_id}")
 
         # Create destination channel
         self.dest_id = await self.create_destination_channel()
         print(f"Destination channel ID: {self.dest_id}")
 
-        # Setup handler
-        self.app.add_handler(
-            self.app.on_message(filters.chat(self.source_id) & filters.video)(
-                self.handle_video
-            )
-        )
-
-        # Process existing videos
         await self.archive_existing_videos()
 
-        # Keep running
-        await self.idle()
-
-    async def resolve_channel_id(self):
+    async def resolve_channel_id(self, link):
         try:
-            chat = await self.app.get_chat(SOURCE_CHANNEL_LINK)
+            chat = await self.app.get_chat(link)
             return chat.id
         except Exception as e:
             raise ValueError(f"Failed to resolve channel: {e}") from e
@@ -91,7 +99,7 @@ class ChannelCopier:
 
     async def handle_video(self, client: Client, message: Message):
         try:
-            # Download video
+            # MASTER_CHAT_USERNAMEo
             path = await message.download()
 
             # Create caption
