@@ -1,9 +1,12 @@
 import asyncio
 import os
 
+from dotenv import load_dotenv
 from pyrogram import Client, enums, filters
 from pyrogram.errors import ChannelInvalid, FloodWait
 from pyrogram.types import ChatPrivileges, Message
+
+load_dotenv()
 
 API_HASH = os.getenv("API_HASH")
 API_ID = os.getenv("API_ID")
