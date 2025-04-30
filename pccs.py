@@ -23,13 +23,11 @@ class ChannelCopier:
             session_string=SESSION_STRING,
             in_memory=True,  # Important for mobile devices
         )
-        self.source_id = None
-        self.dest_id = None
 
     async def start(self):
         await self.app.start()
         print("Bot started successfully!")
-        print("The Bot is awaiting for the command from the master")
+        print("The Bot is awaiting for commands from the master")
 
         self.app.add_handler(
             self.app.on_message(filters.chat(MASTER_CHAT_USERNAME) & filters.text)(
@@ -50,47 +48,55 @@ class ChannelCopier:
             return
 
         link = message.text[3:]
+        # link = re.search("^(?:https?://)?(?:www\\.)?(?:t(?:elegram)?\\.(?:org|me|dog)/(?:joinchat/|\\+))([\\w-]+)$", message.text)
+
         try:
-            self.source_id = await self.resolve_channel_id(link)
+            src_chann = await self.resolve_channel_id(link)
         except Exception as e:
             print(f"Failed to resolve channel: {e}")
-            await client.send_message(message.from_user.id, "Invalid channel link")
+            await self.app.send_message(message.from_user.id, "Invalid channel link")
             return
 
-        print(f"Source channel ID: {self.source_id}")
+        print(f"Source channel ID: {src_chann.id}")
 
-        await client.send_message(
+        await self.app.send_message(
             message.from_user.id, "Task recived, channel found, starting process..."
         )
 
         # Create destination channel
-        self.dest_id = await self.create_destination_channel()
-        print(f"Destination channel ID: {self.dest_id}")
+        dest_chann_id = await self.create_destination_channel(
+            src_chann.title + " [COPY]"
+        )
 
-        await self.archive_existing_videos()
+        print(f"Destination channel ID: {dest_chann_id}")
 
-        dest_chat = await client.get_chat(self.dest_id)
-        dest_chat_link = dest_chat.invite_link
+        dest_chann = await self.app.get_chat(dest_chann_id)
 
-        await client.send_message(
-            message.from_user.id, f"Mission Completed, here you are {dest_chat_link}"
+        await self.app.send_message(
+            message.from_user.id,
+            f"Mission Strarted, you can follow up here {dest_chann.invite_link}",
+        )
+
+        await self.archive_existing_videos(src_chann.id, dest_chann.id)
+
+        print("Mission Completed")
+        await self.app.send_message(
+            message.from_user.id,
+            f"Mission Completed, here you are {dest_chann.invite_link}",
         )
 
     async def resolve_channel_id(self, link):
         try:
             chat = await self.app.get_chat(link)
-            return chat.id
+            return chat
         except Exception as e:
             raise ValueError(f"Failed to resolve channel: {e}") from e
 
-    async def create_destination_channel(self):
-        source_chat = await self.app.get_chat(self.source_id)
-        dest_title = f"{source_chat.title} [Private Copy]"
-
+    async def create_destination_channel(self, title):
         # Check existing channels
         async for dialog in self.app.get_dialogs():
             if (
-                dialog.chat.title == dest_title
+                dialog.chat.title == title
                 and dialog.chat.type == enums.ChatType.CHANNEL
             ):
                 print("Using existing copy channel")
@@ -99,7 +105,7 @@ class ChannelCopier:
         # Create new private channel
         try:
             new_channel = await self.app.create_channel(
-                title=dest_title, description="Automated Private Copy"
+                title=title, description="Automated Private Copy"
             )
 
             return new_channel.id
@@ -107,11 +113,10 @@ class ChannelCopier:
         except FloodWait as e:
             print(f"Waiting {e.value} seconds before retrying...")
             await asyncio.sleep(e.value)
-            return await self.create_destination_channel()
+            return await self.create_destination_channel(title)
 
-    async def handle_video(self, client: Client, message: Message):
+    async def download_and_upload(self, client: Client, message: Message, dest_id):
         try:
-            # MASTER_CHAT_USERNAMEo
             path = await message.download()
 
             # Create caption
@@ -119,7 +124,7 @@ class ChannelCopier:
 
             # Upload to destination
             await self.app.send_video(
-                chat_id=self.dest_id,
+                chat_id=dest_id,
                 video=path,
                 caption=caption,
                 supports_streaming=True,
@@ -135,11 +140,21 @@ class ChannelCopier:
             if os.path.exists(path):
                 os.remove(path)
 
-    async def archive_existing_videos(self):
+    async def archive_existing_videos(self, src_id, dest_id):
         print("Archiving historical videos...")
-        async for message in self.app.get_chat_history(self.source_id):
-            if message.video:
-                await self.handle_video(self.app, message)
+        src_chann = await self.app.get_chat(src_id)
+
+        if src_chann.has_protected_content:
+            async for message in self.app.get_chat_history(src_id):
+                if message.video:
+                    await self.download_and_upload(self.app, message, dest_id)
+        else:
+            try:
+                async for message in self.app.get_chat_history(src_id):
+                    if message.video:
+                        await message.forward(dest_id)
+            except:
+                pass
 
     async def idle(self):
         print("Bot is running. Press Ctrl+C to stop.")
