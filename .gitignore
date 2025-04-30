@@ -2,3 +2,5 @@ __pycache__/
 my_userbot.session
 .env
 downloads/
+*.session
+
