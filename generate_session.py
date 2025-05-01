@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 from pyrogram import Client
 
@@ -10,8 +11,14 @@ API_HASH = "0ef7b2d89db102e3347e0b73f6d4ab6e"  # Replace with your actual API Ha
 async def main():
     async with Client("my_userbot", api_id=API_ID, api_hash=API_HASH) as app:
         print("\n\nYour session string:")
-        print(await app.export_session_string())
+        sess_str = await app.export_session_string()
+        print(sess_str)
         print("\n\nCopy this string!")
+
+        to_write = input("Write it to /.env file? [y/N]: ")
+        if to_write == "y":
+            with open("./.env", "a") as f:
+                f.write(f"\nSESSION_STRING={sess_str}\n")
 
 
 if __name__ == "__main__":
