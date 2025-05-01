@@ -26,6 +26,7 @@ class ChannelCopier:
 
     async def start(self):
         print("program started")
+        print(f"SESSION STRING IS f{SESSION_STRING}")
         await self.app.start()
         print("Bot started successfully!")
         print("The Bot is awaiting for commands from the master")
