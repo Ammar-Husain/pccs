@@ -12,6 +12,7 @@ API_HASH = os.getenv("API_HASH")
 API_ID = os.getenv("API_ID")
 SESSION_STRING = os.getenv("SESSION_STRING")
 MASTER_CHAT_USERNAME = os.getenv("MASTER_CHAT_USERNAME")
+print(f"SESSION STRING IS {SESSION_STRING}")
 
 
 class ChannelCopier:
@@ -26,7 +27,6 @@ class ChannelCopier:
 
     async def start(self):
         print("program started")
-        print(f"SESSION STRING IS f{SESSION_STRING}")
         await self.app.start()
         print("Bot started successfully!")
         print("The Bot is awaiting for commands from the master")
