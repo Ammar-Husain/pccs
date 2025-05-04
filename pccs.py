@@ -6,7 +6,9 @@ from pyrogram import Client, enums, filters
 from pyrogram.errors import ChannelInvalid, FloodWait
 from pyrogram.types import Message
 
-if dotenv.find_dotenv():
+is_prod = os.getenv("PRODUCTION")
+
+if not is_prod:
     conf = dotenv.dotenv_values()
     API_ID = conf["API_ID"]
     API_HASH = conf["API_HASH"]
