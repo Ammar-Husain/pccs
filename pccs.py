@@ -34,6 +34,7 @@ class ChannelCopier:
             session_string=SESSION_STRING or None,
             in_memory=bool(SESSION_STRING),  # Important for mobile devices
         )
+        self.advertising = False
 
     async def start(self):
         print("program started")
@@ -47,25 +48,44 @@ class ChannelCopier:
 
         self.app.add_handler(
             self.app.on_message(filters.chat(MASTER_CHAT_USERNAME) & filters.text)(
-                self.do_if_command
+                self.parse_cammand
             )
         )
 
         # Keep running
         await self.idle()
 
-    async def do_if_command(self, client: Client, message: Message):
+    async def parse_cammand(self, client: Client, message: Message):
         print("A message came from the master")
 
         if message.text[0:3] == "***":
             print("the message is a command")
+            command = message.text[3:]
         else:
             print("The message is not a command")
             return
 
-        link = message.text[3:]
-        # link = re.search("^(?:https?://)?(?:www\\.)?(?:t(?:elegram)?\\.(?:org|me|dog)/(?:joinchat/|\\+))([\\w-]+)$", message.text)
+        if command[:2] == "sc":
+            link = command[2:]
+            await self.copy_content(link, message.from_user.id)
 
+        elif command[:2] == "sr":
+            print("send regulary")
+            link, text, interval = command[2:].split(sep="|")
+            await message.reply(
+                f"I am going to send '{text}' to {link} every {interval}s to stop send `***sa`",
+                quote=True,
+            )
+            await self.send_regularly(link, text, int(interval))
+
+        elif command[:2] == "sa":
+            await message.reply("Stoping all adevertisements...")
+            self.advertising = False
+
+        else:
+            await message.reply("Invalid command", quote=True)
+
+    async def copy_content(self, link, customer_id):
         try:
             src_chann = await self.resolve_channel_id(link)
         except Exception as e:
@@ -76,7 +96,8 @@ class ChannelCopier:
         print(f"Source channel ID: {src_chann.id}")
 
         await self.app.send_message(
-            message.from_user.id, "Task recived, channel found, starting process..."
+            customer_id,
+            "Task recived, channel found, starting Copying Process...",
         )
 
         # Create destination channel
@@ -89,7 +110,7 @@ class ChannelCopier:
         dest_chann = await self.app.get_chat(dest_chann_id)
 
         await self.app.send_message(
-            message.from_user.id,
+            customer_id,
             f"Mission Strarted, you can follow up here {dest_chann.invite_link}",
         )
 
@@ -97,7 +118,7 @@ class ChannelCopier:
 
         print("Mission Completed")
         await self.app.send_message(
-            message.from_user.id,
+            customer_id,
             f"Mission Completed, here you are {dest_chann.invite_link}",
         )
 
@@ -110,13 +131,14 @@ class ChannelCopier:
 
     async def create_destination_channel(self, title):
         # Check existing channels
-        async for dialog in self.app.get_dialogs():
-            if (
-                dialog.chat.title == title
-                and dialog.chat.type == enums.ChatType.CHANNEL
-            ):
-                print("Using existing copy channel")
-                return dialog.chat.id
+        # async for dialog in self.app.get_dialogs():
+        #     if (
+        #         dialog.chat.title == title
+        #         and dialog.chat.type == enums.ChatType.CHANNEL
+        #     ):
+        #         print("Using existing copy channel")
+        #         return dialog.chat.id
+        #
 
         # Create new private channel
         try:
@@ -171,6 +193,15 @@ class ChannelCopier:
                         await message.forward(dest_id)
             except:
                 pass
+
+    async def send_regularly(self, chat_link, text, interval):
+        self.advertising = True
+        print(f"chat_link is {chat_link}, text is {text}, interval is {interval}")
+        chat = await self.app.get_chat(chat_link)
+        if chat.id:
+            while self.advertising:
+                await self.app.send_message(chat.id, text)
+                await asyncio.sleep(interval)
 
     async def idle(self):
         print("Bot is running. Press Ctrl+C to stop.")
