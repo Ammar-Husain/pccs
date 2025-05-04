@@ -1,19 +1,26 @@
 import asyncio
 import os
 
-from dotenv import dotenv_values, load_dotenv
+import dotenv
 from pyrogram import Client, enums, filters
 from pyrogram.errors import ChannelInvalid, FloodWait
-from pyrogram.types import ChatPrivileges, Message
+from pyrogram.types import Message
 
-load_dotenv()
-dotenv_values()
+if dotenv.find_dotenv():
+    conf = dotenv.dotenv_values()
+    API_ID = conf["API_ID"]
+    API_HASH = conf["API_HASH"]
+    SESSION_STRING = conf["SESSION_STRING"]
+    MASTER_CHAT_USERNAME = conf["MASTER_CHAT_USERNAME"]
+    print(f"SESSION STRING imported from dotenv is {SESSION_STRING}")
 
-API_HASH = os.getenv("API_HASH")
-API_ID = os.getenv("API_ID")
-SESSION_STRING = os.getenv("SESSION_STRING")
-MASTER_CHAT_USERNAME = os.getenv("MASTER_CHAT_USERNAME")
-print(f"SESSION STRING IS {SESSION_STRING}")
+
+else:
+    API_ID = os.getenv("API_ID")
+    API_HASH = os.getenv("API_HASH")
+    SESSION_STRING = os.getenv("SESSION_STRING")
+    MASTER_CHAT_USERNAME = os.getenv("MASTER_CHAT_USERNAME")
+    print(f"SESSION STRING imported from enviroment is {SESSION_STRING}")
 
 
 class ChannelCopier:
