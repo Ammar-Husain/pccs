@@ -37,7 +37,11 @@ class ChannelCopier:
 
     async def start(self):
         print("program started")
-        await self.app.start()
+        try:
+            await self.app.start()
+        except ConnectionError as e:
+            print("Connection Error:", e)
+
         print("Bot started successfully!")
         print("The Bot is awaiting for commands from the master")
 
