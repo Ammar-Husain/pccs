@@ -19,7 +19,7 @@ else:
     API_ID = os.getenv("API_ID")
     API_HASH = os.getenv("API_HASH")
     SESSION_STRING = os.getenv("SESSION_STRING")
-    MASTER_CHAT_USERNAME = os.getenv("MASTER_CHAT_USERNAME")
+    MASTER_CHAT_USERNAME = "@" + os.getenv("MASTER_CHAT_USERNAME")
     print(f"SESSION STRING imported from enviroment is {SESSION_STRING}")
 
 
