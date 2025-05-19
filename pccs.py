@@ -173,6 +173,7 @@ class ChannelCopier:
             # Create caption and other metadata
             caption = message.caption or ""
             duration = message.video.duration
+
             print(duration)
 
             # Upload to destination
