@@ -1,0 +1,8 @@
+[package]
+language = "python"
+
+[python]
+version = "3.12"
+requirements = "requirements.txt"
+start = "python pccs.py"
+
