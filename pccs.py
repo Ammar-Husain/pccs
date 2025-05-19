@@ -168,10 +168,12 @@ class ChannelCopier:
         try:
             video_path = await message.download()
             thumb_path = await self.app.download_media(message.video.thumbs[0].file_id)
+            print(thumb_path)
 
             # Create caption and other metadata
             caption = message.caption or ""
             duration = message.video.duration
+            print(duration)
 
             # Upload to destination
             await self.app.send_video(
