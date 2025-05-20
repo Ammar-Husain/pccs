@@ -94,7 +94,7 @@ class ChannelCopier:
             src_chann = await self.resolve_channel_id(link)
         except Exception as e:
             print(f"Failed to resolve channel: {e}")
-            await self.app.send_message(customer_id, "Invalid channel link")
+            await self.app.send_message(customer_id, e)
             return
 
         print(f"Source channel ID: {src_chann.id}")
