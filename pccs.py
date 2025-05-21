@@ -1,10 +1,13 @@
 import asyncio
 import os
+from datetime import datetime
+from itertools import islice
 
 import dotenv
 from pyrogram import Client, enums, filters
 from pyrogram.errors import ChannelInvalid, FloodWait
 from pyrogram.types import ChatPreview, Message
+from tqdm import tqdm
 
 is_prod = os.getenv("PRODUCTION")
 
@@ -118,7 +121,14 @@ class ChannelCopier:
             f"Mission Strarted, you can follow up here {dest_chann.invite_link}",
         )
 
-        await self.archive_existing_videos(src_chann.id, dest_chann.id)
+        bar_message = await self.app.send_message(
+            customer_id,
+            "Progress Bar",
+        )
+
+        await self.archive_existing_videos(
+            src_chann.id, dest_chann.id, customer_id, bar_message.id, bar_message.date
+        )
 
         print("Mission Completed")
         await self.app.send_message(
@@ -163,18 +173,15 @@ class ChannelCopier:
             await asyncio.sleep(e.value)
             return await self.create_destination_channel(title)
 
-    async def download_and_upload(self, client: Client, message: Message, dest_id):
-
+    async def download_and_upload(self, client: Client, message_id, src_id, dest_id):
         try:
+            message = await self.app.get_messages(src_id, message_id)
             video_path = await message.download()
             thumb_path = await self.app.download_media(message.video.thumbs[0].file_id)
-            print(thumb_path)
 
             # Create caption and other metadata
             caption = message.caption or ""
             duration = message.video.duration
-
-            print(duration)
 
             # Upload to destination
             await self.app.send_video(
@@ -185,34 +192,93 @@ class ChannelCopier:
                 duration=duration,
                 supports_streaming=True,
             )
-            print(f"Copied video {message.id}")
 
         except FloodWait as e:
             print(f"Flood wait: {e.value}s")
             await asyncio.sleep(e.value)
+            await self.download_and_upload(message_id, src_id, dest_id)
+
         except Exception as e:
             print(f"Error copying video: {e}")
+
         else:
             if os.path.exists(video_path):
                 os.remove(video_path)
             if os.path.exists(thumb_path):
                 os.remove(thumb_path)
 
-    async def archive_existing_videos(self, src_id, dest_id):
+    async def archive_existing_videos(
+        self, src_id, dest_id, customer_id, bar_message_id, bar_message_time
+    ):
         print("Archiving historical videos...")
         src_chann = await self.app.get_chat(src_id)
 
+        videos_ids = []
+        async for message in self.app.get_chat_history(src_id):
+            if message.video:
+                videos_ids.append(message.id)
+
+        videos_count = len(videos_ids)
+
         if src_chann.has_protected_content:
-            async for message in self.app.get_chat_history(src_id):
-                if message.video:
-                    await self.download_and_upload(self.app, message, dest_id)
+            # for i, video_message_id in tqdm(
+            #     enumerate(videos_ids),
+            #     unit="video",
+            #     total=videos_count,
+            #     desc="Upload progress",
+            # ):
+
+            for i, video_message_id in enumerate(videos_ids):
+                await self.download_and_upload(
+                    self.app, video_message_id, src_id, dest_id
+                )
+
+                elapsed = (datetime.now() - bar_message_time).seconds
+                bar = tqdm.format_meter(
+                    n=i + 1,
+                    total=videos_count,
+                    elapsed=elapsed,
+                    prefix="Downloading",
+                    unit="videos",
+                )
+                await self.app.edit_message_text(customer_id, bar_message_id, bar)
+
         else:
-            try:
-                async for message in self.app.get_chat_history(src_id):
-                    if message.video:
-                        await message.forward(dest_id)
-            except Exception as e:
-                print(f"Exception during forwarding: {e}")
+            # forward messages indivisually
+            for video_message_id in tqdm(
+                videos_ids, unit="video", desc="Forwarding progress"
+            ):
+                try:
+                    await self.app.forward_messages(dest_id, src_id, video_message_id)
+                except FloodWait as e:
+                    print(f"Flood wait: {e.value} seconds")
+                    await asyncio.sleep(e.value + 1)
+                    await message.forward(dest_id)
+
+            # forward in chunks
+            # it = iter(videos_ids)
+            # messages_chunks = list(iter(lambda: list(islice(it, 100)), []))
+            # #
+            # print(
+            #     f"{len(videos_ids)} vidoes found, divided into {len(messages_chunks)} chunks."
+            # )
+            # for chunk in tqdm(
+            #     messages_chunks, unit="chunk", desc="Forwarding progress"
+            # ):
+            #     try:
+            #         await self.app.forward_messages(
+            #             dest_id,
+            #             src_id,
+            #             chunk,
+            #         )
+            #     except FloodWait as e:
+            #         print(f"Flood wait: {e.value} seconds")
+            #         await asyncio.sleep(e.value + 1)
+            #         await self.app.forward_messages(
+            #             dest_id,
+            #             src_id,
+            #             chunk,
+            #         )
 
     async def send_regularly(self, chat_link, text, interval):
         def is_reply_to_me(client, message):
