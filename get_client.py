@@ -1,7 +1,9 @@
+import asyncio
 import os
 
 import dotenv
 from pyrogram import Client
+from tqdm import tqdm
 
 
 def get_client():
@@ -25,3 +27,19 @@ def get_client():
     )
 
     return client
+
+
+async def copy_to(client, src_id, dest_id, cur=0, end=0):
+    src_chann = await client.get_chat(src_id)
+
+    messages = []
+    async for message in client.get_chat_history(src_chann.id):
+        if message.video:
+            messages.append(message)
+
+    messages = messages[cur:] if not end else messages[cur:end]
+
+    dest_chann = await client.get_chat(dest_id)
+
+    for message in tqdm(messages, unit="vidoe", desc="Forwarding"):
+        await message.forward(dest_chann.id)

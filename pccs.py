@@ -205,9 +205,9 @@ class ChannelCopier:
 
         except FloodWait as e:
             print(f"Flood wait: {e.value}s")
-            if e.value > 60:
+            if int(e.value) > 60:
                 await self.app.send_message(
-                    dest_id, f"FloodWait: wait {e.value} seconds"
+                    dest_id, f"FloodWait: wait {int(e.value)/60} seconds"
                 )
             await asyncio.sleep(e.value)
             await self.download_and_upload(message, src_id, dest_id)
@@ -249,7 +249,7 @@ class ChannelCopier:
                     total=videos_count,
                     elapsed=elapsed,
                     prefix="Downloading",
-                    unit="videos",
+                    unit="video",
                 )
                 await self.app.edit_message_text(customer_id, bar_message_id, bar)
 
@@ -262,14 +262,14 @@ class ChannelCopier:
             videos_ids = videos_ids[cur:]
 
             # forward messages indivisually
-            for video_message_id in tqdm(videos_ids, unit="videos", desc="Forwarding"):
+            for video_message_id in tqdm(videos_ids, unit="video", desc="Forwarding"):
                 try:
                     await self.app.forward_messages(dest_id, src_id, video_message_id)
                 except FloodWait as e:
                     print(f"Flood wait: {e.value} seconds")
-                    if e.value > 60:
+                    if int(e.value) > 60:
                         await self.app.send_message(
-                            dest_id, f"FloodWait: wait {e.value} seconds"
+                            dest_id, f"FloodWait: wait {int(e.value)/60} seconds"
                         )
                     await asyncio.sleep(e.value + 1)
                     await message.forward(dest_id)
@@ -296,14 +296,14 @@ class ChannelCopier:
             #             total=len(messages_chunks),
             #             elapsed=elapsed,
             #             prefix="Forwarding",
-            #             unit="chunks",
+            #             unit="chunk",
             #         )
             #         await self.app.edit_message_text(customer_id, bar_message_id, bar)
             #
             #     except FloodWait as e:
             #         print(f"Flood wait: {e.value} seconds")
-            # if e.value > 60:
-            #     await self.app.send_messages(dest_id, f"FloodWait: wait {e.value} seconds")
+            # if int(e.value) > 60:
+            #     await self.app.send_messages(dest_id, f"FloodWait: wait {int(e.value)/60} seconds")
             #         await asyncio.sleep(e.value + 1)
             #         await self.app.forward_messages(
             #             dest_id,

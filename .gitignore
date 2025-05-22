@@ -3,4 +3,5 @@ my_userbot.session
 .env
 downloads/
 *.session
+get_client.py
 
