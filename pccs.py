@@ -205,6 +205,10 @@ class ChannelCopier:
 
         except FloodWait as e:
             print(f"Flood wait: {e.value}s")
+            if e.value > 60:
+                await self.app.send_message(
+                    dest_id, f"FloodWait: wait {e.value} seconds"
+                )
             await asyncio.sleep(e.value)
             await self.download_and_upload(message, src_id, dest_id)
 
@@ -263,6 +267,10 @@ class ChannelCopier:
                     await self.app.forward_messages(dest_id, src_id, video_message_id)
                 except FloodWait as e:
                     print(f"Flood wait: {e.value} seconds")
+                    if e.value > 60:
+                        await self.app.send_message(
+                            dest_id, f"FloodWait: wait {e.value} seconds"
+                        )
                     await asyncio.sleep(e.value + 1)
                     await message.forward(dest_id)
 
@@ -294,6 +302,8 @@ class ChannelCopier:
             #
             #     except FloodWait as e:
             #         print(f"Flood wait: {e.value} seconds")
+            # if e.value > 60:
+            #     await self.app.send_messages(dest_id, f"FloodWait: wait {e.value} seconds")
             #         await asyncio.sleep(e.value + 1)
             #         await self.app.forward_messages(
             #             dest_id,
