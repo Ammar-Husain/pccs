@@ -73,8 +73,13 @@ class ChannelCopier:
             return
 
         if command[:2] == "sc":
-            link = command[3:]
-            await self.copy_content(link, message.from_user.id)
+            command = command[3:]
+            if "|" in command:
+                link, cur = command.split("|")
+                cur = int(cur) if cur.isnumeric() else 0
+                await self.copy_content(link, cur, message.from_user.id)
+            else:
+                await self.copy_content(command, 0, message.from_user.id)
 
         elif command[:2] == "sr":
             print("send regulary")
@@ -92,7 +97,7 @@ class ChannelCopier:
         else:
             await message.reply("Invalid command", quote=True)
 
-    async def copy_content(self, link, customer_id):
+    async def copy_content(self, link, cur, customer_id):
         try:
             src_chann = await self.resolve_channel_id(link)
         except Exception as e:
@@ -104,7 +109,7 @@ class ChannelCopier:
 
         await self.app.send_message(
             customer_id,
-            "Task recived, channel found, starting Copying Process...",
+            f"Task recived, channel found, starting Copying Process from {cur}...",
         )
 
         # Create destination channel
@@ -127,7 +132,12 @@ class ChannelCopier:
         )
 
         await self.archive_existing_videos(
-            src_chann.id, dest_chann.id, customer_id, bar_message.id, bar_message.date
+            src_chann.id,
+            cur,
+            dest_chann.id,
+            customer_id,
+            bar_message.id,
+            bar_message.date,
         )
 
         print("Mission Completed")
@@ -173,7 +183,7 @@ class ChannelCopier:
             await asyncio.sleep(e.value)
             return await self.create_destination_channel(title)
 
-    async def download_and_upload(self, client: Client, message, src_id, dest_id):
+    async def download_and_upload(self, message, src_id, dest_id):
         try:
             # message = await self.app.get_messages(src_id, message_id)
             video_path = await message.download()
@@ -196,7 +206,7 @@ class ChannelCopier:
         except FloodWait as e:
             print(f"Flood wait: {e.value}s")
             await asyncio.sleep(e.value)
-            await self.download_and_upload(message_id, src_id, dest_id)
+            await self.download_and_upload(message, src_id, dest_id)
 
         except Exception as e:
             print(f"Error copying video: {e}")
@@ -208,7 +218,7 @@ class ChannelCopier:
                 os.remove(thumb_path)
 
     async def archive_existing_videos(
-        self, src_id, dest_id, customer_id, bar_message_id, bar_message_time
+        self, src_id, cur, dest_id, customer_id, bar_message_id, bar_message_time
     ):
         print("Archiving historical videos...")
         src_chann = await self.app.get_chat(src_id)
@@ -218,14 +228,16 @@ class ChannelCopier:
             async for message in self.app.get_chat_history(src_id):
                 if message.video:
                     video_messages.append(message)
-            videos_count = len(video_messages)
+
+            video_messages = video_messages[cur:]
 
             await self.app.edit_message_text(
                 customer_id, bar_message_id, "Messages Objects Copied 100%"
             )
 
+            videos_count = len(video_messages)
             for i, video_message in enumerate(video_messages):
-                await self.download_and_upload(self.app, video_message, src_id, dest_id)
+                await self.download_and_upload(video_message, src_id, dest_id)
 
                 elapsed = (datetime.now() - bar_message_time).seconds
                 bar = tqdm.format_meter(
@@ -242,6 +254,8 @@ class ChannelCopier:
             async for message in self.app.get_chat_history(src_id):
                 if message.video:
                     videos_ids.append(message.id)
+
+            videos_ids = videos_ids[cur:]
 
             # forward messages indivisually
             for video_message_id in tqdm(videos_ids, unit="videos", desc="Forwarding"):
