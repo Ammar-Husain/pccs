@@ -217,7 +217,7 @@ class ChannelCopier:
             await self.app.send_message(
                 dest_id, f"Error download and uploading: {e}\nretrying"
             )
-            download_and_upload(message, src_id, dest_id)
+            self.download_and_upload(message, src_id, dest_id)
 
         else:
             if os.path.exists(video_path):
