@@ -325,15 +325,16 @@ class ChannelCopier:
 
     # async def archive_non_protected(self, src_id, cur, dest_id, customer_id, bar_message_id, bar_message_time):
     async def archive_non_protected(self, src_id, cur, dest_id):
-
+        video_ids = []
         async for message in self.app.get_chat_history(src_id):
             if message.video:
-                videos_ids.append(message.id)
+                video_ids.append(message.id)
 
-        videos_ids = videos_ids[cur:]
+        if cur:
+            video_ids = video_ids[cur:]
 
         # forward messages indivisually
-        for video_message_id in tqdm(videos_ids, unit="video", desc="Forwarding"):
+        for video_message_id in tqdm(video_ids, unit="video", desc="Forwarding"):
             try:
                 await self.app.forward_messages(dest_id, src_id, video_message_id)
             except FloodWait as e:
@@ -345,11 +346,11 @@ class ChannelCopier:
                 await message.forward(dest_id)
 
         # forward in chunks
-        # it = iter(videos_ids)
+        # it = iter(video_ids)
         # messages_chunks = list(iter(lambda: list(islice(it, 100)), []))
         # #
         # print(
-        #     f"{len(videos_ids)} vidoes found, divided into {len(messages_chunks)} chunks."
+        #     f"{len(video_ids)} vidoes found, divided into {len(messages_chunks)} chunks."
         # )
         #
         # for i, chunk in enumerate(messages_chunks):
