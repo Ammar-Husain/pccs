@@ -63,9 +63,6 @@ class ChannelCopier:
 
     async def start(self):
         print("program started")
-        await asyncio.sleep(
-            30
-        )  # to allow the previous deployment to be shut down so no auth confliction occur
         try:
             await self.app.start()
         except ConnectionError as e:
@@ -279,9 +276,9 @@ class ChannelCopier:
             return await self.download_and_upload(message, src_id, dest_id)
 
         else:
-            if os.path.exists(video_path):
+            if video_path and os.path.exists(video_path):
                 os.remove(video_path)
-            if os.path.exists(thumb_path):
+            if thumb_path and os.path.exists(thumb_path):
                 os.remove(thumb_path)
 
     async def archive_existing_videos(
