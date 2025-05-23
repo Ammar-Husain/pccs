@@ -226,9 +226,9 @@ class ChannelCopier:
                 )
                 return
 
-            video_path = await message.download()
-            thumb_path = None
+            video_path = await self.app.download_media(message.video.file_id)
 
+            thumb_path = None
             if video_path:
                 if message.video.thumbs:
                     thumb_path = await self.app.download_media(
@@ -270,7 +270,14 @@ class ChannelCopier:
         except Exception as e:
             print(f"Error copying video: {e}")
             await self.app.send_message(
-                dest_id, f"Error download and uploading: {e}\nretrying"
+                dest_id,
+                f"""
+                Error download and uploading: {e}
+                video path is {video_path}
+                download video size is {os.path.getsize(video_path)}
+                telegram video size is {message.video.file_size}
+                retrying
+                """,
             )
             await asyncio.sleep(3)
             return await self.download_and_upload(message, src_id, dest_id)
