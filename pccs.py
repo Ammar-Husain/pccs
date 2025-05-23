@@ -237,7 +237,8 @@ class ChannelCopier:
             await self.app.send_message(
                 dest_id, f"Error download and uploading: {e}\nretrying"
             )
-            # return await self.download_and_upload(message, src_id, dest_id)
+            await asyncio.sleep(3)
+            return await self.download_and_upload(message, src_id, dest_id)
 
         else:
             if os.path.exists(video_path):
