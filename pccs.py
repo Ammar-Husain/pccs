@@ -45,7 +45,7 @@ class ChannelCopier:
 
     async def start(self):
         print("program started")
-        asyncio.sleep(
+        await asyncio.sleep(
             30
         )  # to allow the previous deployment to be shut down so no auth confliction occur
         try:
