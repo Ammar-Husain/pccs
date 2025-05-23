@@ -23,13 +23,32 @@ if not is_prod:
 else:
     API_ID = os.getenv("API_ID")
     API_HASH = os.getenv("API_HASH")
-    SESSION_STRING = os.getenv("SESSION_STRING")
     MASTER_CHAT_USERNAME = os.getenv("MASTER_CHAT_USERNAME")
 
     if not MASTER_CHAT_USERNAME == "me" or MASTER_CHAT_USERNAME == "self":
         MASTER_CHAT_USERNAME = "@" + MASTER_CHAT_USERNAME
+    
+    if not dotenv.find_dotenv():
+        with open(".env", "w") as f:
+            f.write("NSS='1'")
 
-    print(f"SESSION STRING imported from enviroment is {SESSION_STRING}")
+    try:
+        nss = dotenv.dotenv_values()["NSS"]
+    except KeyError:
+        nss = "1"
+
+    if nss == "1":
+        SESSION_STRING = os.getenv("SESSION_STRING1")
+        print(f"SESSION STRING 1 imported from enviroment is {SESSION_STRING}")
+        with open(dotenv.find_dotenv(), "w") as f:
+    
+    elif nss == "2":
+        SESSION_STRING = os.getenv("SESSION_STRING2")
+        print(f"SESSION STRING 2 imported from enviroment is {SESSION_STRING}")
+        with open(dotenv.find_dotenv(), "w") as f:
+            f.write("NSS='1'")
+
+
 
 
 class ChannelCopier:
