@@ -289,19 +289,27 @@ class ChannelCopier:
                 if message.video:
                     video_messages_or_ids.append(message.id)
 
+            await self.app.edit_message_text(
+                customer_id,
+                bar_message_id,
+                "Safe mode is on, this give higher stability, but If you were kicked, it is the end",
+            )
         else:  # store the whole message
             async for message in self.app.get_chat_history(src_id):
                 if message.video:
                     video_messages_or_ids.append(message)
 
-        await self.app.edit_message_text(
-            customer_id,
-            bar_message_id,
-            "non-safe mode is on, Messages Objects Copied 100%",
-        )
+            await self.app.edit_message_text(
+                customer_id,
+                bar_message_id,
+                "non-safe mode is on, Messages Objects Copied 100%",
+            )
 
-        video_messages_or_ids = video_messages_or_ids[cur:]
+        if cur:
+            video_messages_or_ids = video_messages_or_ids[cur:]
+
         videos_count = len(video_messages_or_ids)
+
         for i, video_message in enumerate(video_messages_or_ids):
             await self.download_and_upload(video_message, src_id, dest_id)
 
