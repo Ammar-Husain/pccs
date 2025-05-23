@@ -195,7 +195,7 @@ class ChannelCopier:
     async def download_and_upload(self, message_or_id, src_id, dest_id):
         try:
             if isinstance(message_or_id, int):
-                message = await self.app.get_messages(src_id, message_id)
+                message = await self.app.get_messages(src_id, message_or_id)
             else:
                 message = message_or_id
 
@@ -424,6 +424,7 @@ async def main():
         print("Error: Not a member of the source channel.")
     except Exception as e:
         print(f"Fatal error: {e}")
+        await copier.app.send_message(MASTER_CHAT_USERNAME, f"an Error: {e}")
     finally:
         await copier.stop()
 
