@@ -75,12 +75,15 @@ class ChannelCopier:
         if command[:2] == "sc":
             target = command[3:]
             if "|" in command:
+
                 if target.count("|") == 1:
                     link, cur = target.split("|")
                     cur = int(cur) if cur.isnumeric() else 0
                     await self.copy_content(link, cur, message.from_user.id, False)
+
                 elif target.count("|") == 2:
                     link, cur, safe = target.split("|")
+                    cur = int(cur) if cur.isnumeric() else 0
                     await self.copy_content(link, cur, message.from_user.id, safe)
 
             else:
