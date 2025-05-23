@@ -194,7 +194,7 @@ class ChannelCopier:
 
     async def download_and_upload(self, message_or_id, src_id, dest_id):
         try:
-            if isinstance(message_or_id, str):
+            if isinstance(message_or_id, int):
                 message = await self.app.get_messages(src_id, message_id)
             else:
                 message = message_or_id
@@ -284,11 +284,14 @@ class ChannelCopier:
     ):
         video_messages_or_ids = []
 
-        async for message in self.app.get_chat_history(src_id):
-            if message.video:
-                if safe:  # store ids only
+        if safe:  # store ids only
+            async for message in self.app.get_chat_history(src_id):
+                if message.video:
                     video_messages_or_ids.append(message.id)
-                else:  # store the whole message
+
+        else:  # store the whole message
+            async for message in self.app.get_chat_history(src_id):
+                if message.video:
                     video_messages_or_ids.append(message)
 
         await self.app.edit_message_text(
