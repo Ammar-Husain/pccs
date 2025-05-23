@@ -199,12 +199,27 @@ class ChannelCopier:
             else:
                 message = message_or_id
 
-            video_path = await message.download()
-            thumb_path = await self.app.download_media(message.video.thumbs[0].file_id)
+            if not msessage.video:
+                self.app.send_message(
+                    dest_id,
+                    f"message of id {message.id} contain NO media!, how did it reach here?",
+                )
+                return
 
-            if not video_path:
-                await self.app.send_message(
-                    "me", "There was an incomplete download of a file"
+            video_path = await message.download()
+
+            if video_path:
+                if message.video.thumbs:
+                    thumb_path = await self.app.download_media(
+                        message.video.thumbs[0].file_id
+                    )
+                else:
+                    self.app.send_message(
+                        dest_id, "the next video contain no thumbnail"
+                    )
+            else:
+                self.app.send_message(
+                    dest_id, f"Failed to download video of id {message.id}"
                 )
                 await asyncio.sleep(1)
                 return await self.download_and_upload(message, src_id, dest_id)
