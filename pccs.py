@@ -1,5 +1,6 @@
 import asyncio
 import os
+import pickle
 from datetime import datetime
 from itertools import islice
 
@@ -116,6 +117,10 @@ class ChannelCopier:
 
             else:
                 await self.copy_content(target, 0, message.from_user.id, False)
+
+        elif command[:2] == "ec":
+            link = command[3:]
+            await self.extract_messages(link, message.from_user.id)
 
         elif command[:2] == "sr":
             print("send regulary")
@@ -271,7 +276,7 @@ class ChannelCopier:
             print(f"Flood wait: {e.value}s")
             try:
                 await self.app.send_message(
-                    "me", f"FloodWait: wait {int(e.value)/60} minutes"
+                    "me", f"FloodWait: {int(e.value)//60} minutes\n{e}"
                 )
             except:
                 pass
@@ -295,8 +300,8 @@ class ChannelCopier:
             except FloodWait:
                 pass
 
-            await asyncio.sleep(3)
-            return await self.download_and_upload(message, src_id, dest_id)
+            # await asyncio.sleep(3)
+            # return await self.download_and_upload(message, src_id, dest_id)
 
         else:
             if video_path and os.path.exists(video_path):
@@ -439,6 +444,31 @@ class ChannelCopier:
         #         src_id,
         #         chunk,
         #     )
+
+    async def extract_messages(self, chann_link, customer_id):
+        try:
+            src_chann = await self.resolve_channel_id(chann_link)
+        except:
+            await self.app.send_message(customer_id, "Chat not found")
+        else:
+            await self.app.send_message(customer_id, "Chat Found, Exctracting content")
+
+        messages = []
+        async for message in self.app.get_chat_history(src_chann.id):
+            messages.append(message)
+
+        file_name = src_chann.title + "-history(pickled)"
+
+        with open(file_name, "wb") as f:
+            pickle.dump(messages, f)
+
+        try:
+            await self.app.send_document(customer_id, file_name)
+        except Exception as e:
+            await self.app.send_message(customer_id, f"Error sending file, {e}")
+
+        if os.path.exists(file_name):
+            os.remove(file_name)
 
     async def send_regularly(self, chat_link, text, interval):
         def is_reply_to_me(client, message):
