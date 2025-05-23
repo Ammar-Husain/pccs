@@ -55,14 +55,14 @@ class ChannelCopier:
 
         self.app.add_handler(
             self.app.on_message(filters.chat(MASTER_CHAT_USERNAME) & filters.text)(
-                self.parse_cammand
+                self.parse_command
             )
         )
 
         # Keep running
         await self.idle()
 
-    async def parse_cammand(self, client: Client, message: Message):
+    async def parse_command(self, client: Client, message: Message):
         print("A message came from the master")
 
         if message.text[0:3] == "***":
@@ -73,13 +73,18 @@ class ChannelCopier:
             return
 
         if command[:2] == "sc":
-            command = command[3:]
+            target = command[3:]
             if "|" in command:
-                link, cur = command.split("|")
-                cur = int(cur) if cur.isnumeric() else 0
-                await self.copy_content(link, cur, message.from_user.id)
+                if target.count("|") == 1:
+                    link, cur = target.split("|")
+                    cur = int(cur) if cur.isnumeric() else 0
+                    await self.copy_content(link, cur, message.from_user.id, False)
+                elif target.count("|") == 2:
+                    link, cur, safe = target.split("|")
+                    await self.copy_content(link, cur, message.from_user.id, safe)
+
             else:
-                await self.copy_content(command, 0, message.from_user.id)
+                await self.copy_content(target, 0, message.from_user.id, False)
 
         elif command[:2] == "sr":
             print("send regulary")
@@ -97,7 +102,7 @@ class ChannelCopier:
         else:
             await message.reply("Invalid command", quote=True)
 
-    async def copy_content(self, link, cur, customer_id):
+    async def copy_content(self, link, cur, customer_id, safe):
         try:
             src_chann = await self.resolve_channel_id(link)
         except Exception as e:
@@ -138,6 +143,7 @@ class ChannelCopier:
             customer_id,
             bar_message.id,
             bar_message.date,
+            safe,
         )
 
         print("Mission Completed")
@@ -183,11 +189,22 @@ class ChannelCopier:
             await asyncio.sleep(e.value)
             return await self.create_destination_channel(title)
 
-    async def download_and_upload(self, message, src_id, dest_id):
+    async def download_and_upload(self, message_or_id, src_id, dest_id):
         try:
-            # message = await self.app.get_messages(src_id, message_id)
+            if isinstance(message_or_id, str):
+                message = await self.app.get_messages(src_id, message_id)
+            else:
+                message = message_or_id
+
             video_path = await message.download()
             thumb_path = await self.app.download_media(message.video.thumbs[0].file_id)
+
+            if not video_path:
+                await self.app.send_message(
+                    "me", "There was an incomplete download of a file"
+                )
+                await asyncio.sleep(1)
+                return await self.download_and_upload(message, src_id, dest_id)
 
             # Create caption and other metadata
             caption = message.caption or ""
@@ -217,7 +234,7 @@ class ChannelCopier:
             await self.app.send_message(
                 dest_id, f"Error download and uploading: {e}\nretrying"
             )
-            self.download_and_upload(message, src_id, dest_id)
+            return await self.download_and_upload(message, src_id, dest_id)
 
         else:
             if os.path.exists(video_path):
@@ -226,94 +243,128 @@ class ChannelCopier:
                 os.remove(thumb_path)
 
     async def archive_existing_videos(
-        self, src_id, cur, dest_id, customer_id, bar_message_id, bar_message_time
+        self,
+        src_id,
+        cur,
+        dest_id,
+        customer_id,
+        bar_message_id,
+        bar_message_time,
+        safe=False,
     ):
         print("Archiving historical videos...")
         src_chann = await self.app.get_chat(src_id)
 
         if src_chann.has_protected_content:
-            video_messages = []
-            async for message in self.app.get_chat_history(src_id):
-                if message.video:
-                    video_messages.append(message)
-
-            video_messages = video_messages[cur:]
-
-            await self.app.edit_message_text(
-                customer_id, bar_message_id, "Messages Objects Copied 100%"
+            await self.archive_protected(
+                src_id,
+                cur,
+                dest_id,
+                customer_id,
+                bar_message_id,
+                bar_message_time,
+                safe,
             )
-
-            videos_count = len(video_messages)
-            for i, video_message in enumerate(video_messages):
-                await self.download_and_upload(video_message, src_id, dest_id)
-
-                elapsed = (datetime.now() - bar_message_time).seconds
-                bar = tqdm.format_meter(
-                    n=i + 1,
-                    total=videos_count,
-                    elapsed=elapsed,
-                    prefix="Downloading",
-                    unit="video",
-                )
-                await self.app.edit_message_text(customer_id, bar_message_id, bar)
-
         else:
-            videos_ids = []
-            async for message in self.app.get_chat_history(src_id):
-                if message.video:
-                    videos_ids.append(message.id)
+            # await self.archive_non_protected(src_id, cur, dest_id, customer_id, bar_message_id, bar_message_time)
+            await self.archive_non_protected(src_id, cur, dest_id)
 
-            videos_ids = videos_ids[cur:]
+    async def archive_protected(
+        self,
+        src_id,
+        cur,
+        dest_id,
+        customer_id,
+        bar_message_id,
+        bar_message_time,
+        safe=False,
+    ):
+        video_messages_or_ids = []
 
-            # forward messages indivisually
-            for video_message_id in tqdm(videos_ids, unit="video", desc="Forwarding"):
-                try:
-                    await self.app.forward_messages(dest_id, src_id, video_message_id)
-                except FloodWait as e:
-                    print(f"Flood wait: {e.value} seconds")
-                    if int(e.value) > 60:
-                        await self.app.send_message(
-                            dest_id, f"FloodWait: wait {int(e.value)/60} seconds"
-                        )
-                    await asyncio.sleep(e.value + 1)
-                    await message.forward(dest_id)
+        async for message in self.app.get_chat_history(src_id):
+            if message.video:
+                if safe:  # store ids only
+                    video_messages_or_ids.append(message.id)
+                else:  # store the whole message
+                    video_messages_or_ids.append(message)
 
-            # forward in chunks
-            # it = iter(videos_ids)
-            # messages_chunks = list(iter(lambda: list(islice(it, 100)), []))
-            # #
-            # print(
-            #     f"{len(videos_ids)} vidoes found, divided into {len(messages_chunks)} chunks."
-            # )
-            #
-            # for i, chunk in enumerate(messages_chunks):
-            #     try:
-            #         await self.app.forward_messages(
-            #             dest_id,
-            #             src_id,
-            #             chunk,
-            #         )
-            #
-            #         elapsed = (datetime.now() - bar_message_time).seconds
-            #         bar = tqdm.format_meter(
-            #             n=i + 1,
-            #             total=len(messages_chunks),
-            #             elapsed=elapsed,
-            #             prefix="Forwarding",
-            #             unit="chunk",
-            #         )
-            #         await self.app.edit_message_text(customer_id, bar_message_id, bar)
-            #
-            #     except FloodWait as e:
-            #         print(f"Flood wait: {e.value} seconds")
-            # if int(e.value) > 60:
-            #     await self.app.send_messages(dest_id, f"FloodWait: wait {int(e.value)/60} seconds")
-            #         await asyncio.sleep(e.value + 1)
-            #         await self.app.forward_messages(
-            #             dest_id,
-            #             src_id,
-            #             chunk,
-            #         )
+        await self.app.edit_message_text(
+            customer_id,
+            bar_message_id,
+            "non-safe mode is on, Messages Objects Copied 100%",
+        )
+
+        video_messages_or_ids = video_messages_or_ids[cur:]
+        videos_count = len(video_messages_or_ids)
+        for i, video_message in enumerate(video_messages_or_ids):
+            await self.download_and_upload(video_message, src_id, dest_id)
+
+            elapsed = (datetime.now() - bar_message_time).seconds
+            bar = tqdm.format_meter(
+                n=i + 1,
+                total=videos_count,
+                elapsed=elapsed,
+                prefix="Downloading",
+                unit="video",
+            )
+            await self.app.edit_message_text(customer_id, bar_message_id, bar)
+
+    # async def archive_non_protected(self, src_id, cur, dest_id, customer_id, bar_message_id, bar_message_time):
+    async def archive_non_protected(self, src_id, cur, dest_id):
+
+        async for message in self.app.get_chat_history(src_id):
+            if message.video:
+                videos_ids.append(message.id)
+
+        videos_ids = videos_ids[cur:]
+
+        # forward messages indivisually
+        for video_message_id in tqdm(videos_ids, unit="video", desc="Forwarding"):
+            try:
+                await self.app.forward_messages(dest_id, src_id, video_message_id)
+            except FloodWait as e:
+                print(f"Flood wait: {e.value} seconds")
+                await self.app.send_message(
+                    dest_id, f"FloodWait: wait {int(e.value)/60} seconds"
+                )
+                await asyncio.sleep(e.value + 1)
+                await message.forward(dest_id)
+
+        # forward in chunks
+        # it = iter(videos_ids)
+        # messages_chunks = list(iter(lambda: list(islice(it, 100)), []))
+        # #
+        # print(
+        #     f"{len(videos_ids)} vidoes found, divided into {len(messages_chunks)} chunks."
+        # )
+        #
+        # for i, chunk in enumerate(messages_chunks):
+        #     try:
+        #         await self.app.forward_messages(
+        #             dest_id,
+        #             src_id,
+        #             chunk,
+        #         )
+        #
+        #         elapsed = (datetime.now() - bar_message_time).seconds
+        #         bar = tqdm.format_meter(
+        #             n=i + 1,
+        #             total=len(messages_chunks),
+        #             elapsed=elapsed,
+        #             prefix="Forwarding",
+        #             unit="chunk",
+        #         )
+        #         await self.app.edit_message_text(customer_id, bar_message_id, bar)
+        #
+        # except FloodWait as e:
+        #     print(f"Flood wait: {e.value} seconds")
+        #     await self.app.send_messages(dest_id, f"FloodWait: wait {int(e.value)/60} seconds")
+        #     await asyncio.sleep(e.value + 3)
+        #     await self.app.forward_messages(
+        #         dest_id,
+        #         src_id,
+        #         chunk,
+        #     )
 
     async def send_regularly(self, chat_link, text, interval):
         def is_reply_to_me(client, message):
