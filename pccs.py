@@ -65,13 +65,21 @@ class ChannelCopier:
         print("program started")
         try:
             await self.app.start()
-        except ConnectionError as e:
-            print("Connection Error:", e)
 
-        print("Bot started successfully!")
-        print("The Bot is awaiting for commands from the master")
+            print("Bot started successfully!")
+            print("The Bot is awaiting for commands from the master")
 
-        await self.app.send_message(MASTER_CHAT_USERNAME, "Listening for commands here")
+            await self.app.send_message(
+                MASTER_CHAT_USERNAME, "Listening for commands here"
+            )
+
+        except ConnectionError:
+            print("ConnectionError:", e)
+        except FloodWait as e:
+            print(e)
+            await self.app.send_message("me", e)
+            await asyncio.sleep(int(e.value) + 1)
+            await self.app.send_message(MASTER_CHAT_USERNAME, "Flood wait ends")
 
         self.app.add_handler(
             self.app.on_message(filters.chat(MASTER_CHAT_USERNAME) & filters.text)(
@@ -261,10 +269,13 @@ class ChannelCopier:
 
         except FloodWait as e:
             print(f"Flood wait: {e.value}s")
-            await self.app.send_message(
-                dest_id, f"FloodWait: wait {int(e.value)/60} minutes"
-            )
-            await asyncio.sleep(e.value)
+            try:
+                await self.app.send_message(
+                    "me", f"FloodWait: wait {int(e.value)/60} minutes"
+                )
+            except:
+                pass
+            await asyncio.sleep(int(e.value) + 1)
             await self.download_and_upload(message, src_id, dest_id)
 
         except Exception as e:
@@ -276,6 +287,7 @@ class ChannelCopier:
                 video path is {video_path}
                 download video size is {os.path.getsize(video_path)}
                 telegram video size is {message.video.file_size}
+                video message id is {message.id}
                 retrying
                 """,
             )
@@ -383,7 +395,7 @@ class ChannelCopier:
             except FloodWait as e:
                 print(f"Flood wait: {e.value} seconds")
                 await self.app.send_message(
-                    dest_id, f"FloodWait: wait {int(e.value)/60} seconds"
+                    dest_id, f"FloodWait: wait {int(e.value)/60} minutes"
                 )
                 await asyncio.sleep(e.value + 1)
                 await message.forward(dest_id)
