@@ -212,6 +212,7 @@ class ChannelCopier:
                 return
 
             video_path = await message.download()
+            thumb_path = None
 
             if video_path:
                 if message.video.thumbs:
