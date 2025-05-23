@@ -53,6 +53,8 @@ class ChannelCopier:
         print("Bot started successfully!")
         print("The Bot is awaiting for commands from the master")
 
+        await self.app.send_message(MASTER_CHAT_USERNAME, "Listening for commands here")
+
         self.app.add_handler(
             self.app.on_message(filters.chat(MASTER_CHAT_USERNAME) & filters.text)(
                 self.parse_command
@@ -200,7 +202,7 @@ class ChannelCopier:
                 message = message_or_id
 
             if not msessage.video:
-                self.app.send_message(
+                await self.app.send_message(
                     dest_id,
                     f"message of id {message.id} contain NO media!, how did it reach here?",
                 )
@@ -214,14 +216,14 @@ class ChannelCopier:
                         message.video.thumbs[0].file_id
                     )
                 else:
-                    self.app.send_message(
+                    await self.app.send_message(
                         dest_id, "the next video contain no thumbnail"
                     )
             else:
-                self.app.send_message(
-                    dest_id, f"Failed to download video of id {message.id}"
+                await self.app.send_message(
+                    dest_id, f"Failed to download video of id {message.id}, retrying..."
                 )
-                await asyncio.sleep(1)
+                await asyncio.sleep(3)
                 return await self.download_and_upload(message, src_id, dest_id)
 
             # Create caption and other metadata
@@ -240,10 +242,9 @@ class ChannelCopier:
 
         except FloodWait as e:
             print(f"Flood wait: {e.value}s")
-            if int(e.value) > 60:
-                await self.app.send_message(
-                    dest_id, f"FloodWait: wait {int(e.value)/60} seconds"
-                )
+            await self.app.send_message(
+                dest_id, f"FloodWait: wait {int(e.value)/60} minutes"
+            )
             await asyncio.sleep(e.value)
             await self.download_and_upload(message, src_id, dest_id)
 
