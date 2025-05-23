@@ -280,9 +280,10 @@ class ChannelCopier:
 
         except Exception as e:
             print(f"Error copying video: {e}")
-            await self.app.send_message(
-                dest_id,
-                f"""
+            try:
+                await self.app.send_message(
+                    "me",
+                    f"""
                 Error download and uploading: {e}
                 video path is {video_path}
                 download video size is {os.path.getsize(video_path)}
@@ -290,7 +291,10 @@ class ChannelCopier:
                 video message id is {message.id}
                 retrying
                 """,
-            )
+                )
+            except FloodWait:
+                pass
+
             await asyncio.sleep(3)
             return await self.download_and_upload(message, src_id, dest_id)
 
