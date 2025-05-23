@@ -45,7 +45,9 @@ class ChannelCopier:
 
     async def start(self):
         print("program started")
-        asyncio.sleep(30) # to allow the previous deployment to be shut down so no auth confliction occur 
+        asyncio.sleep(
+            30
+        )  # to allow the previous deployment to be shut down so no auth confliction occur
         try:
             await self.app.start()
         except ConnectionError as e:
@@ -447,13 +449,13 @@ async def main():
     copier = ChannelCopier()
     try:
         await copier.start()
-    
+
     except ChannelInvalid:
         print("Error: Not a member of the source channel.")
-    
+
     except Exception as e:
         print(f"Fatal error: {e}")
-        
+
         await copier.app.send_message(MASTER_CHAT_USERNAME, f"an Error: {e}")
     except KeyboardInterrupt:
         print("\nBot stopped by user")
@@ -463,5 +465,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    try:
-        asyncio.get_event_loop().run_until_complete(main())
+    asyncio.get_event_loop().run_until_complete(main())
