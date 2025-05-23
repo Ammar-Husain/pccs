@@ -201,7 +201,7 @@ class ChannelCopier:
             else:
                 message = message_or_id
 
-            if not msessage.video:
+            if not message.video:
                 await self.app.send_message(
                     dest_id,
                     f"message of id {message.id} contain NO media!, how did it reach here?",
