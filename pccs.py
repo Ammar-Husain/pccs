@@ -98,7 +98,7 @@ class ChannelCopier:
         await self.idle()
 
     async def parse_command(self, client: Client, message: Message):
-        print("A message came from the master")
+        print("A message came from the master!")
 
         if message.document and message.caption == "***ftc":
             await self.file_to_channle(message)
@@ -177,7 +177,7 @@ class ChannelCopier:
         if dest_link:
             try:
                 dest_chann = await self.resolve_channel_id(dest_link)
-                msg = await self.app.send_message(dest_chann.id, "ffjf")
+                msg = await self.app.send_message(dest_chann.id, ".")
                 await msg.delete()
             except ChatAdminRequired:
                 await self.app.send_message(
@@ -384,7 +384,9 @@ class ChannelCopier:
                 bar_message_id,
                 "No need for a bar, channel is not protected, just chill a little bit",
             )
-            await self.archive_non_protected(src_id, cur, dest_id)
+            await self.archive_non_protected(
+                customer_id, src_id, cur, dest_id, bar_message_id, bar_message_time
+            )
 
     async def archive_protected(
         self,
@@ -449,14 +451,27 @@ class ChannelCopier:
             )
             await self.app.edit_message_text(customer_id, bar_message_id, bar)
 
-    # async def archive_non_protected(self, src_id, cur, dest_id, customer_id, bar_message_id, bar_message_time):
-    async def archive_non_protected(self, src_id, cur, dest_id):
+    async def archive_non_protected(
+        self, customer_id, src_id, cur, dest_id, bar_message_id, bar_message_time
+    ):
+        # async def archive_non_protected(self, src_id, cur, dest_id):
         video_ids = []
         async for message in self.app.get_chat_history(src_id):
             if message.video:
                 video_ids.append(message.id)
 
         if cur:
+            if cur >= len(video_ids):
+                await self.app.edit_message_text(
+                    customer_id,
+                    bar_message_id,
+                    f"""
+                    cur is the video the transfer stop in the last time, it must be less than total videos numbers
+                    cur was {cur}, the source channel contain {videos_count} videos
+                    """,
+                )
+                return
+
             video_ids = video_ids[cur:]
 
         # forward messages indivisually
