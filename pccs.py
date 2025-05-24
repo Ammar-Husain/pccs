@@ -326,6 +326,7 @@ class ChannelCopier:
                 )
             except:
                 pass
+
             await asyncio.sleep(int(e.value) + 1)
             await self.download_and_upload(message, src_id, dest_id)
 
