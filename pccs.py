@@ -7,7 +7,12 @@ from itertools import islice
 import dotenv
 from _pickle import UnpicklingError
 from pyrogram import Client, enums, filters
-from pyrogram.errors import ChannelInvalid, FileReferenceExpired, FloodWait
+from pyrogram.errors import (
+    ChannelInvalid,
+    ChatAdminRequired,
+    FileReferenceExpired,
+    FloodWait,
+)
 from pyrogram.types import ChatPreview, Message
 from tqdm import tqdm
 
@@ -107,21 +112,29 @@ class ChannelCopier:
             return
 
         if command[:2] == "sc":
-            target = command[3:]
+            task = command[3:]
             if "|" in command:
+                params = task.split("|")
+                if not len(params) == 4:
+                    await message.reply(
+                        "the sc command must be in the form `***sc src_link|cur|dest_link|safe` or `***sc src_link`"
+                    )
+                    return
 
-                if target.count("|") == 1:
-                    link, cur = target.split("|")
-                    cur = int(cur) if cur.isnumeric() else 0
-                    await self.copy_content(link, cur, message.from_user.id, False)
+                src_chann, cur, dest_chann, safe = params
+                if cur and not cur.isnumeric():
+                    await message.reply(
+                        f"cur must be empty string or numeric value, {cur} was given instead"
+                    )
 
-                elif target.count("|") == 2:
-                    link, cur, safe = target.split("|")
-                    cur = int(cur) if cur.isnumeric() else 0
-                    await self.copy_content(link, cur, message.from_user.id, safe)
+                cur = 0 if cur == "" else int(cur)
+
+                await self.copy_content(
+                    message.from_user.id, src_chann, cur, dest_chann, safe
+                )
 
             else:
-                await self.copy_content(target, 0, message.from_user.id, False)
+                await self.copy_content(message.from_user.id, task)
 
         elif command[:2] == "ec":
             link = command[3:]
@@ -143,27 +156,49 @@ class ChannelCopier:
         else:
             await message.reply("Invalid command", quote=True)
 
-    async def copy_content(self, link, cur, customer_id, safe):
+    async def copy_content(
+        self, customer_id, src_link, cur=0, dest_link=None, safe=False
+    ):
         try:
-            src_chann = await self.resolve_channel_id(link)
+            src_chann = await self.resolve_channel_id(src_link)
         except Exception as e:
-            print(f"Failed to resolve channel: {e}")
-            await self.app.send_message(customer_id, e)
+            print(f"Failed to resolve source channel: {e}")
+            await self.app.send_message(
+                customer_id, f"Failed to resolve source channel\n{e}"
+            )
             return
 
         print(f"Source channel ID: {src_chann.id}")
 
         await self.app.send_message(
             customer_id,
-            f"Task recived, channel found, starting Copying Process from {cur}...",
+            f"Task recived, source channel found, starting Copying Process from {cur}...",
         )
+        if dest_link:
+            try:
+                dest_chann = await self.resolve_channel_id(dest_link)
+                msg = await self.app.send_message(dest_chann.id, "ffjf")
+                await msg.delete()
+            except ChatAdminRequired:
+                await self.app.send_message(
+                    customer_id,
+                    "You must have write permissions in destination channel",
+                )
+                return
 
-        # Create destination channel
-        dest_chann_id = await self.create_destination_channel(
-            src_chann.title + " [COPY]"
-        )
+            except Exception as e:
+                print(f"Failed to resolve destination channel\n{e}")
+                await self.app.send_message(
+                    customer_id, f"Failed to resolve destination channel\n{e}"
+                )
+                return
 
-        dest_chann = await self.app.get_chat(dest_chann_id)
+        else:
+            dest_chann_id = await self.create_destination_channel(
+                src_chann.title + " [COPY]"
+            )
+
+            dest_chann = await self.app.get_chat(dest_chann_id)
 
         print(f"Destination channel ID: {dest_chann.id}")
 
@@ -178,13 +213,13 @@ class ChannelCopier:
         )
 
         await self.archive_existing_videos(
+            customer_id,
             src_chann.id,
             cur,
             dest_chann.id,
-            customer_id,
+            safe,
             bar_message.id,
             bar_message.date,
-            safe,
         )
 
         print("Mission Completed")
@@ -248,6 +283,7 @@ class ChannelCopier:
             return
 
         try:
+
             video_path = await self.app.download_media(message.video.file_id)
 
             thumb_path = None
@@ -320,26 +356,26 @@ class ChannelCopier:
 
     async def archive_existing_videos(
         self,
+        customer_id,
         src_id,
         cur,
         dest_id,
-        customer_id,
+        safe,
         bar_message_id,
         bar_message_time,
-        safe=False,
     ):
         print("Archiving historical videos...")
         src_chann = await self.app.get_chat(src_id)
 
         if src_chann.has_protected_content:
             await self.archive_protected(
+                customer_id,
                 src_id,
                 cur,
                 dest_id,
-                customer_id,
+                safe,
                 bar_message_id,
                 bar_message_time,
-                safe,
             )
         else:
             # await self.archive_non_protected(src_id, cur, dest_id, customer_id, bar_message_id, bar_message_time)
@@ -347,13 +383,13 @@ class ChannelCopier:
 
     async def archive_protected(
         self,
+        customer_id,
         src_id,
         cur,
         dest_id,
-        customer_id,
+        safe,
         bar_message_id,
         bar_message_time,
-        safe=False,
     ):
         video_messages_or_ids = []
 
@@ -378,10 +414,22 @@ class ChannelCopier:
                 "non-safe mode is on, Messages Objects Copied 100%",
             )
 
-        if cur:
-            video_messages_or_ids = video_messages_or_ids[cur:]
-
         videos_count = len(video_messages_or_ids)
+
+        if cur:
+            if cur >= videos_count:
+                await self.app.edit_message_text(
+                    customer_id,
+                    bar_message_id,
+                    f"""
+                    cur is the video the transfer stop in the last time, it must be less than total videos numbers
+                    cur was {cur}, the source channel contain {videos_count} videos
+                    """,
+                )
+                return
+
+            video_messages_or_ids = video_messages_or_ids[cur:]
+            videos_count = len(video_messages_or_ids)
 
         for i, video_message in enumerate(video_messages_or_ids):
             await self.download_and_upload(video_message, src_id, dest_id)
