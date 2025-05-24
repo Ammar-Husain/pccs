@@ -468,6 +468,7 @@ class ChannelCopier:
                 await self.app.send_message(
                     dest_id, f"FloodWait: wait {int(e.value)/60} minutes\n{e}"
                 )
+
                 await asyncio.sleep(int(e.value) + 1)
                 await self.app.forward_messages(dest_id, src_id, video_message_id)
 
