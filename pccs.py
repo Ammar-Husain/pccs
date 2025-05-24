@@ -5,8 +5,9 @@ from datetime import datetime
 from itertools import islice
 
 import dotenv
+from _pickle import UnpicklingError
 from pyrogram import Client, enums, filters
-from pyrogram.errors import ChannelInvalid, FloodWait
+from pyrogram.errors import ChannelInvalid, FileReferenceExpired, FloodWait
 from pyrogram.types import ChatPreview, Message
 from tqdm import tqdm
 
@@ -83,9 +84,9 @@ class ChannelCopier:
             await self.app.send_message(MASTER_CHAT_USERNAME, "Flood wait ends")
 
         self.app.add_handler(
-            self.app.on_message(filters.chat(MASTER_CHAT_USERNAME) & filters.text)(
-                self.parse_command
-            )
+            self.app.on_message(
+                filters.chat(MASTER_CHAT_USERNAME) & (filters.text | filters.document)
+            )(self.parse_command)
         )
 
         # Keep running
@@ -94,7 +95,11 @@ class ChannelCopier:
     async def parse_command(self, client: Client, message: Message):
         print("A message came from the master")
 
-        if message.text[0:3] == "***":
+        if message.document and message.caption == "***ftc":
+            await self.file_to_channle(message)
+            return
+
+        elif message.text[0:3] == "***":
             print("the message is a command")
             command = message.text[3:]
         else:
@@ -226,19 +231,23 @@ class ChannelCopier:
             return await self.create_destination_channel(title)
 
     async def download_and_upload(self, message_or_id, src_id, dest_id):
+        if isinstance(message_or_id, int):
+            message = await self.app.get_messages(src_id, message_or_id)
+        elif isinstance(message_or_id, Message):
+            message = message_or_id
+        else:
+            raise TypeError(
+                f"message or id must be of type int or pyrogram.types.Message, {type(message_or_id)} was given instead"
+            )
+
+        if not message.video:
+            await self.app.send_message(
+                dest_id,
+                f"message of id {message.id} contain NO media!, how did it reach here?",
+            )
+            return
+
         try:
-            if isinstance(message_or_id, int):
-                message = await self.app.get_messages(src_id, message_or_id)
-            else:
-                message = message_or_id
-
-            if not message.video:
-                await self.app.send_message(
-                    dest_id,
-                    f"message of id {message.id} contain NO media!, how did it reach here?",
-                )
-                return
-
             video_path = await self.app.download_media(message.video.file_id)
 
             thumb_path = None
@@ -470,40 +479,149 @@ class ChannelCopier:
         if os.path.exists(file_name):
             os.remove(file_name)
 
-    async def send_regularly(self, chat_link, text, interval):
-        def is_reply_to_me(client, message):
-            print(message)
-            replied = message.reply_to_message
-            if (
-                replied
-                and replied.from_user
-                and replied.from_user.id == message._client.me.id
-            ):
-                print("a message has been replied to")
-                return True
-            else:
-                return False
+    async def file_to_channle(self, command_message: Message):
+        print("a file to channel process started")
+        if not command_message.document:
+            await command_message.reply("You need to attach the file to the message")
+            return
 
-        self.advertising = True
+        file_path = await self.app.download_media(command_message.document.file_id)
+        try:
+            with open(file_path, "rb") as f:
+                messages = pickle.load(f)
+        except TypeError:
+            await command_message.reply(
+                "The file content must be a binary pickled list[pyrogram.types.Messages] object."
+            )
+            return
+        except UnpicklingError:
+            await command_message.reply("The file is corrupted")
+            return
 
-        print(f"chat_link is {chat_link}, text is {text}, interval is {interval}")
+        messages_exist = False
+        all_messages = True
+        types = set()
+        for message in messages:
+            if isinstance(message, Message) and not messages_exist:
+                messages_exist = True
 
-        chat = await self.app.get_chat(chat_link)
+            elif not isinstance(message, Message):
+                if all_messages:
+                    all_messages = False
 
-        async def add_and_inform(client, message):
-            print("adding and informing the user", message.from_user.first_name)
-            # await client.add_contact(message.from_user.id, message.user.first_name)
-            # await message.reply("ضفتك تعال خاص", quote=True)
-            print("added to the contacts:", message.from_user.username)
+                types.add(type(message))
 
-        if chat.id:
-            filter_ = filters.chat(chat.id)  # & filters.create(is_reply_to_me)
-            print("Chat id for sr is", chat.id)
-            self.app.add_handler(self.app.on_message(filter_)(add_and_inform))
+        if not messages_exist:
+            await command_message.reply(
+                f"""
+                The file is intact but it doesn't contain any item of type <class pyrogram.types.Message>
+                the content of the file is of types {types}
+                """
+            )
+            return
 
-            while self.advertising:
-                await self.app.send_message(chat.id, text)
-                await asyncio.sleep(interval)
+        elif not all_messages:
+            await command_message.reply(
+                f"""
+                Warning: the file is intact and contain messages, but it also contain other types such as {types}\n
+                starting the operation the  available messages though... 
+                """
+            )
+
+            messages = filter(lambda m: isinstance(m, Message))
+
+        else:
+            await command_message.reply(
+                """The file is intact, the content is messages, starting the operation.."""
+            )
+
+        title = (
+            command_message.document.file_name.replace("-history(pickled)", "")
+            + " from file"
+        )
+        dest_chann_id = await self.create_destination_channel(title)
+        dest_chann = await self.app.get_chat(dest_chann_id)
+
+        await command_message.reply(
+            f"""
+            You can follow up here: {dest_chann.invite_link}
+            """
+        )
+
+        bar_message = await command_message.reply("Progress Bar")
+        messages_count = len(messages)
+
+        for i, message in enumerate(messages):
+            if message.video:
+                try:
+                    await self.download_and_upload(message, None, dest_chann.id)
+                except TypeError:
+                    pass
+                except FileReferenceExpired:
+                    await self.send_message(dest_id, "as expired file")
+
+            elif message.text:
+                await self.app.send_message(dest_chann.id, message.text)
+            elif message.document:
+                await self.app.send_document(
+                    dest_chann.id, message.document.file_id, caption=message.caption
+                )
+            elif message.audio:
+                await self.app.send_audio(
+                    dest_chann.id, message.audio.file_id, caption=message.caption
+                )
+
+            elapsed = (datetime.now() - bar_message.date).seconds
+
+            bar = tqdm.format_meter(
+                n=i + 1,
+                total=messages_count,
+                elapsed=elapsed,
+                prefix="Uploading...",
+                unit="message",
+            )
+            await bar_message.edit_text(bar)
+
+        await command_message.reply(
+            f"""
+            Mission Completed, here you are {dest_chann.invite_link}
+            """
+        )
+
+    # async def send_regularly(self, chat_link, text, interval):
+    #     def is_reply_to_me(client, message):
+    #         print(message)
+    #         replied = message.reply_to_message
+    #         if (
+    #             replied
+    #             and replied.from_user
+    #             and replied.from_user.id == message._client.me.id
+    #         ):
+    #             print("a message has been replied to")
+    #             return True
+    #         else:
+    #             return False
+    #
+    #     self.advertising = True
+    #
+    #     print(f"chat_link is {chat_link}, text is {text}, interval is {interval}")
+    #
+    #     chat = await self.app.get_chat(chat_link)
+    #
+    #     async def add_and_inform(client, message):
+    #         print("adding and informing the user", message.from_user.first_name)
+    #         # await client.add_contact(message.from_user.id, message.user.first_name)
+    #         # await message.reply("ضفتك تعال خاص", quote=True)
+    #         print("added to the contacts:", message.from_user.username)
+    #
+    #     if chat.id:
+    #         filter_ = filters.chat(chat.id)  # & filters.create(is_reply_to_me)
+    #         print("Chat id for sr is", chat.id)
+    #         self.app.add_handler(self.app.on_message(filter_)(add_and_inform))
+    #
+    #         while self.advertising:
+    #             await self.app.send_message(chat.id, text)
+    #             await asyncio.sleep(interval)
 
     async def idle(self):
         print("Bot is running. Press Ctrl+C to stop.")

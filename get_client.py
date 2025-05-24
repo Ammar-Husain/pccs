@@ -29,17 +29,23 @@ def get_client():
     return client
 
 
-async def copy_to(client, src_id, dest_id, cur=0, end=0):
-    src_chann = await client.get_chat(src_id)
+async def copy_to(client, src_link=None, dest_link=None, cur=0, end=0):
+    if not src_link:
+        src_link = input("Souce Chat link:\n")
+
+    src_chat = await client.get_chat(src_link)
+
+    if not dest_link:
+        dest_link = input("Destination Chat link:\n")
 
     messages = []
-    async for message in client.get_chat_history(src_chann.id):
+    async for message in client.get_chat_history(src_chat.id):
         if message.video:
             messages.append(message)
 
     messages = messages[cur:] if not end else messages[cur:end]
+    messages = messages[::-1]
 
-    dest_chann = await client.get_chat(dest_id)
-
+    dest_chat = await client.get_chat(dest_link)
     for message in tqdm(messages, unit="vidoe", desc="Forwarding"):
-        await message.forward(dest_chann.id)
+        await message.forward(dest_chat.id)
