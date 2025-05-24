@@ -122,12 +122,12 @@ class ChannelCopier:
                     return
 
                 src_chann, cur, dest_chann, safe = params
-                if cur and not cur.isnumeric():
+                try:
+                    cur = 0 if cur == "" else int(cur)
+                except ValueError:
                     await message.reply(
                         f"cur must be empty string or numeric value, {cur} was given instead"
                     )
-
-                cur = 0 if cur == "" else int(cur)
 
                 await self.copy_content(
                     message.from_user.id, src_chann, cur, dest_chann, safe
