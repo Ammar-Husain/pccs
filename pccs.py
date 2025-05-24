@@ -122,6 +122,7 @@ class ChannelCopier:
                     return
 
                 src_chann, cur, dest_chann, safe = params
+
                 try:
                     cur = 0 if cur == "" else int(cur)
                 except ValueError:
