@@ -379,6 +379,11 @@ class ChannelCopier:
             )
         else:
             # await self.archive_non_protected(src_id, cur, dest_id, customer_id, bar_message_id, bar_message_time)
+            await self.app.edit_message_text(
+                customer_id,
+                bar_message_id,
+                "No need for a bar, channel is not protected, just chill a little bit",
+            )
             await self.archive_non_protected(src_id, cur, dest_id)
 
     async def archive_protected(
@@ -461,10 +466,10 @@ class ChannelCopier:
             except FloodWait as e:
                 print(f"Flood wait: {e.value} seconds")
                 await self.app.send_message(
-                    dest_id, f"FloodWait: wait {int(e.value)/60} minutes"
+                    dest_id, f"FloodWait: wait {int(e.value)/60} minutes\n{e}"
                 )
-                await asyncio.sleep(e.value + 1)
-                await message.forward(dest_id)
+                await asyncio.sleep(int(e.value) + 1)
+                await self.app.forward_messages(dest_id, src_id, video_message_id)
 
         # forward in chunks
         # it = iter(video_ids)
