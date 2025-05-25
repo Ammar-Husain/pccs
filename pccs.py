@@ -253,6 +253,7 @@ class ChannelCopier:
         #         return dialog.chat.id
 
         # Create new private channel
+
         try:
             new_channel = await self.app.create_channel(
                 title=title, description="Automated Private Copy"
