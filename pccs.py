@@ -405,7 +405,7 @@ class ChannelCopier:
     ):
         video_messages_or_ids = []
 
-        if safe:  # store ids only
+        if safe:  # store the ids only
             async for message in self.app.get_chat_history(src_id):
                 if message.video:
                     video_messages_or_ids.append(message.id)
