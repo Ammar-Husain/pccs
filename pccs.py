@@ -251,7 +251,6 @@ class ChannelCopier:
         #     ):
         #         print("Using existing copy channel")
         #         return dialog.chat.id
-        #
 
         # Create new private channel
         try:
@@ -322,7 +321,7 @@ class ChannelCopier:
             print(f"Flood wait: {e.value}s")
             try:
                 await self.app.send_message(
-                    "me", f"FloodWait: {int(e.value)/60} minutes\n{e}"
+                    "me", f"FloodWait: {int(e.value)//60} minutes\n{e}"
                 )
             except:
                 pass
