@@ -100,7 +100,7 @@ class ChannelCopier:
     async def parse_command(self, client: Client, message: Message):
         print("A message came from the master!")
 
-        if message.document and message.caption == "***ftc":
+        if message.document and "-history(pickled)" in message.document.file_name:
             await self.file_to_channle(message)
             return
 
@@ -322,13 +322,16 @@ class ChannelCopier:
             print(f"Flood wait: {e.value}s")
             try:
                 await self.app.send_message(
-                    "me", f"FloodWait: {int(e.value)//60} minutes\n{e}"
+                    "me", f"FloodWait: {int(e.value)/60} minutes\n{e}"
                 )
             except:
                 pass
 
             await asyncio.sleep(int(e.value) + 1)
             await self.download_and_upload(message, src_id, dest_id)
+
+        except FileReferenceExpired:
+            raise
 
         except Exception as e:
             print(f"Error copying video: {e}")
@@ -629,7 +632,7 @@ class ChannelCopier:
                 except TypeError:
                     pass
                 except FileReferenceExpired:
-                    await self.send_message(dest_id, "as expired file")
+                    await self.app.send_message(dest_chann.id, "an expired file")
 
             elif message.text:
                 await self.app.send_message(dest_chann.id, message.text)
