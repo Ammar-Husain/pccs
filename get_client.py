@@ -42,8 +42,6 @@ async def copy_to(client, src_link=None, dest_link=None, cur=0, end=0):
     if not dest_link:
         dest_link = input("Destination Chat link:\n")
 
-    print("Start coping...")
-
     messages = []
     async for message in client.get_chat_history(src_chat.id):
         if message.video:
