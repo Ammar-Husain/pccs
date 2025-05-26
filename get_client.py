@@ -48,4 +48,5 @@ async def copy_to(client, src_link=None, dest_link=None, cur=0, end=0):
 
     dest_chat = await client.get_chat(dest_link)
     for message in tqdm(messages, unit="vidoe", desc="Forwarding"):
+
         await message.forward(dest_chat.id)
