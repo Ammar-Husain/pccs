@@ -724,12 +724,13 @@ async def main():
     except ChannelInvalid:
         print("Error: Not a member of the source channel.")
 
-    except Exception as e:
-        print(f"Fatal error: {e}")
-
-        await copier.app.send_message(MASTER_CHAT_USERNAME, f"an Error: {e}")
     except KeyboardInterrupt:
         print("\nBot stopped by user")
+
+    except Exception as e:
+        print(f"Fatal error: {e}")
+        await copier.app.send_message(MASTER_CHAT_USERNAME, f"an Error: {e}")
+
     finally:
         await copier.stop()
 
