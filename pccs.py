@@ -1,6 +1,7 @@
 import asyncio
 import os
 import pickle
+import random
 from datetime import datetime
 from itertools import islice
 
@@ -302,7 +303,7 @@ class ChannelCopier:
                 await self.app.send_message(
                     dest_id, f"Failed to download video of id {message.id}, retrying..."
                 )
-                await asyncio.sleep(3)
+                await asyncio.sleep(random.uniform(2, 5))
                 return await self.download_and_upload(message, src_id, dest_id)
 
             # Create caption and other metadata
@@ -322,6 +323,7 @@ class ChannelCopier:
         except FloodWait as e:
             print(f"Flood wait: {e.value}s")
             try:
+                print(type(e.value))
                 await self.app.send_message(
                     "me", f"FloodWait: {int(e.value)//60} minutes\n{e}"
                 )
@@ -445,6 +447,7 @@ class ChannelCopier:
             videos_count = len(video_messages_or_ids)
 
         for i, video_message in enumerate(video_messages_or_ids):
+            await asyncio.sleep(random.uniform(2, 5))
             await self.download_and_upload(video_message, src_id, dest_id)
 
             elapsed = (datetime.now() - bar_message_time).seconds
