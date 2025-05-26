@@ -708,6 +708,11 @@ class ChannelCopier:
             await asyncio.sleep(3600)  # 1 hour
 
     async def stop(self):
+        try:
+            await self.app.send_message(MASTER_CHAT_USERNAME, "See You Later!")
+        except Exception as e:
+            print(e)
+
         await self.app.stop()
 
 
@@ -725,7 +730,6 @@ async def main():
         await copier.app.send_message(MASTER_CHAT_USERNAME, f"an Error: {e}")
     except KeyboardInterrupt:
         print("\nBot stopped by user")
-        await copier.stop()
     finally:
         await copier.stop()
 
