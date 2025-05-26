@@ -305,6 +305,7 @@ class ChannelCopier:
                 await asyncio.sleep(random.uniform(2, 5))
                 return await self.download_and_upload(message, src_id, dest_id)
 
+            print(f"video of id {message.id} has been downloaded successfully")
             # Create caption and other metadata
             caption = message.caption or ""
             duration = message.video.duration
@@ -315,10 +316,11 @@ class ChannelCopier:
                 video=video_path,
                 thumb=thumb_path,
                 caption=caption,
-                duration=duration,
                 supports_streaming=True,
+                duration=duration,
             )
 
+            print(f"video of id {message.id} has been uploaded successfully")
         except FloodWait as e:
             print(f"Flood wait: {e.value}s")
             try:
