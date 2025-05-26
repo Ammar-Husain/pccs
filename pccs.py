@@ -323,14 +323,15 @@ class ChannelCopier:
         except FloodWait as e:
             print(f"Flood wait: {e.value}s")
             try:
-                print(type(e.value))
                 await self.app.send_message(
-                    "me", f"FloodWait: {int(e.value)//60} minutes\n{e}"
+                    "me",
+                    f"FloodWait: {int(e.value)//60} minutes\n{e}\n, type of e.value is {type(e.value)}",
                 )
+
             except:
                 pass
-
-            await asyncio.sleep(int(e.value) + 1)
+            sleep_time = int(e.value) + 1 if int(e.value) > 10 else int(e.value) * 3
+            await asyncio.sleep(sleep_time)
             await self.download_and_upload(message, src_id, dest_id)
 
         except FileReferenceExpired:
