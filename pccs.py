@@ -85,7 +85,6 @@ class ChannelCopier:
         except ConnectionError:
             print("ConnectionError:", e)
         except FloodWait as e:
-            print(e)
             await self.app.send_message("me", e)
             await asyncio.sleep(e.value + 1)
             await self.app.send_message(MASTER_CHAT_USERNAME, "Flood wait ends")
