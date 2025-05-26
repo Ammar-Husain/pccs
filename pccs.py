@@ -330,7 +330,7 @@ class ChannelCopier:
 
             except:
                 pass
-            sleep_time = e.value + 1 if e.value > 10 else e.value * 3
+            sleep_time = e.value if e.value > 10 else e.value * 3
             await asyncio.sleep(sleep_time)
             await self.download_and_upload(message, src_id, dest_id)
 
