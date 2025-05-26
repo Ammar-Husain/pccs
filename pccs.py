@@ -335,6 +335,7 @@ class ChannelCopier:
             await self.download_and_upload(message, src_id, dest_id)
 
         except FileReferenceExpired:
+            print("expired file")
             raise
 
         except Exception as e:
