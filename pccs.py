@@ -87,7 +87,7 @@ class ChannelCopier:
         except FloodWait as e:
             print(e)
             await self.app.send_message("me", e)
-            await asyncio.sleep(int(e.value) + 1)
+            await asyncio.sleep(e.value + 1)
             await self.app.send_message(MASTER_CHAT_USERNAME, "Flood wait ends")
 
         self.app.add_handler(
@@ -325,12 +325,12 @@ class ChannelCopier:
             try:
                 await self.app.send_message(
                     "me",
-                    f"FloodWait: {int(e.value)//60} minutes\n{e}\n, type of e.value is {type(e.value)}",
+                    f"FloodWait: {e.value//60}:{e.value%60}\n{e}",
                 )
 
             except:
                 pass
-            sleep_time = int(e.value) + 1 if int(e.value) > 10 else int(e.value) * 3
+            sleep_time = e.value + 1 if e.value > 10 else e.value * 3
             await asyncio.sleep(sleep_time)
             await self.download_and_upload(message, src_id, dest_id)
 
@@ -491,10 +491,10 @@ class ChannelCopier:
             except FloodWait as e:
                 print(f"Flood wait: {e.value} seconds")
                 await self.app.send_message(
-                    dest_id, f"FloodWait: wait {int(e.value)/60} minutes\n{e}"
+                    dest_id, f"FloodWait: {e.value//60}:{e.value%60}\n{e}"
                 )
 
-                await asyncio.sleep(int(e.value) + 1)
+                await asyncio.sleep(e.value + 1)
                 await self.app.forward_messages(dest_id, src_id, video_message_id)
 
         # forward in chunks
@@ -525,7 +525,7 @@ class ChannelCopier:
         #
         # except FloodWait as e:
         #     print(f"Flood wait: {e.value} seconds")
-        #     await self.app.send_messages(dest_id, f"FloodWait: wait {int(e.value)/60} seconds")
+        #     await self.app.send_messages(dest_id, f"FloodWait: wait {e.value//60}:{e.value%60}")
         #     await asyncio.sleep(e.value + 3)
         #     await self.app.forward_messages(
         #         dest_id,
