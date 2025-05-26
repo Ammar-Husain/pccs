@@ -1,7 +1,3 @@
-"""
-thsese file is just demo iniline shits
-"""
-
 import asyncio
 import os
 
