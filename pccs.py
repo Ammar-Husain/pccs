@@ -105,6 +105,8 @@ class ChannelCopier:
             await self.file_to_channel(message)
             return
 
+        elif not message.text:
+            return
         elif message.text[0:3] == "***":
             print("the message is a command")
             command = message.text[3:]

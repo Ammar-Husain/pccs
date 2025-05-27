@@ -31,7 +31,7 @@ def get_client():
 
 async def copy_to(client, src_link=None, dest_link=None, cur=0, end=0):
     if not src_link:
-        src_link = input("Souce Chat link:\n")
+        src_link = input("Source Chat link:\n")
 
     src_chat = await client.get_chat(src_link)
 
