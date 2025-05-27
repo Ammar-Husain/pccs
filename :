@@ -101,7 +101,7 @@ class ChannelCopier:
     async def parse_command(self, client: Client, message: Message):
         print("A message came from the master!")
 
-        if message.document and "pickled" in message.document.file_name:
+        if message.document and "-history(pickled)" in message.document.file_name:
             await self.file_to_channel(message)
             return
 

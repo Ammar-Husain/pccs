@@ -1,14 +1,27 @@
 import asyncio
 import os
 
+import dotenv
 from pyrogram import Client
-
-# Get these from https://my.telegram.org/apps
-API_ID = 23678585  # Replace with your actual API ID
-API_HASH = "0ef7b2d89db102e3347e0b73f6d4ab6e"  # Replace with your actual API Hash
 
 
 async def main():
+    # Get these from https://my.telegram.org/apps
+    dotenv.load_dotenv()
+    API_ID = os.getenv("API_ID")
+    API_HASH = os.getenv("API_HASH")
+
+    if not API_ID:
+        print(
+            "Missing API ID, make sure to include it in your environment or .env file"
+        )
+        return
+    if not API_HASH:
+        print(
+            "Missing API HASH, make sure to include it in your environment or .env file"
+        )
+        return
+
     async with Client("my_userbot", api_id=API_ID, api_hash=API_HASH) as app:
         print("\n\nYour session string:")
         sess_str = await app.export_session_string()
