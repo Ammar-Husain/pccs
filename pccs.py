@@ -97,10 +97,6 @@ class ChannelCopier:
             )(self.parse_command)
         )
 
-        dialogs = []
-        async for dialog in self.app.get_dialogs():
-            dialogs.append(dialog.chat.id)
-
         # Keep running
         await self.idle()
 
