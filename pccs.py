@@ -80,9 +80,9 @@ class ChannelCopier:
             print("Bot started successfully!")
             print("The Bot is awaiting for commands from the master")
 
-            await self.app.send_message(
-                MASTER_CHAT_USERNAME, "Listening for commands here"
-            )
+            # await self.app.send_message(
+            #     MASTER_CHAT_USERNAME, "Listening for commands here"
+            # )
 
         except ConnectionError:
             print("ConnectionError:", e)

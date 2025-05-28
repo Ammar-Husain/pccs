@@ -36,7 +36,7 @@ async def copy_to(client, src_link=None, dest_link=None, cur=0, end=0):
     src_chat = await client.get_chat(src_link)
 
     if not dest_link:
-        dest_link = input("Destination Chat link:\n")
+        dest_link = input("Destination Chat link: \n")
 
     messages = []
     async for message in client.get_chat_history(src_chat.id):
