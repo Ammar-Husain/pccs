@@ -68,6 +68,8 @@ class ChannelCopier:
             in_memory=bool(SESSION_STRING),  # Important for mobile devices
             sleep_threshold=0,
         )
+        self.tasks_count = 0
+        self.state = {}
         self.advertising = False
 
     async def start(self):
@@ -102,7 +104,17 @@ class ChannelCopier:
         print("A message came from the master!")
 
         if message.document and "pickled" in message.document.file_name:
+            task_id = str(self.tasks_count + 1)
+            self.state[task_id] = {
+                "type": "file_to_channel",
+                "target": message.document.file_name,
+                "started": datetime.now(),
+            }
+            self.tasks_count += 1
+
             await self.file_to_channel(message)
+            self.state.pop(task_id)
+
             return
 
         elif not message.text:
@@ -133,16 +145,50 @@ class ChannelCopier:
                         f"cur must be empty string or numeric value, {cur} was given instead"
                     )
 
+                task_id = str(self.tasks_count + 1)
+
+                self.state[task_id] = {
+                    "type": "copy content",
+                    "target": src_chann,
+                    "started": datetime.now(),
+                }
+                self.tasks_count += 1
+
                 await self.copy_content(
                     message.from_user.id, src_chann, cur, dest_chann, safe
                 )
 
+                self.state.pop(task_id)
+
             else:
+                task_id = str(self.tasks_count + 1)
+
+                self.state[task_id] = {
+                    "type": "copy content",
+                    "target": task,
+                    "started": datetime.now(),
+                }
+                self.tasks_count += 1
+
                 await self.copy_content(message.from_user.id, task)
+
+                self.state.pop(task_id)
 
         elif command[:2] == "ec":
             link = command[3:]
+            task_id = str(self.tasks_count + 1)
+            self.state[task_id] = {
+                "type": "channel_to_file",
+                "target": link,
+                "started": datetime.now(),
+            }
+            self.tasks_count += 1
+
             await self.extract_messages(link, message.from_user.id)
+            self.state.pop(task_id)
+
+        elif command[:5] == "state":
+            await self.get_state(message)
 
         elif command[:2] == "sr":
             print("send regulary")
@@ -343,7 +389,6 @@ class ChannelCopier:
 
         except FileReferenceExpired:
             print("expired file")
-            raise
 
         except Exception as e:
             print(f"Error copying video: {e}")
@@ -675,6 +720,23 @@ class ChannelCopier:
             Mission Completed, here you are {dest_chann.invite_link}
             """
         )
+
+    async def get_state(self, message):
+        state = f"tasks count is {self.tasks_count}\n"
+        for k in self.state:
+            task = self.state[k]
+            task_str = f"""
+                task{k}:
+                type: {task["type"]}
+                target: {task["target"]}
+                started: {task["started"]}
+                \n
+                """
+            state += task_str
+
+        if not len(self.state):
+            state += "No Tasks are running"
+        await message.reply_text(state, quote=True)
 
     # async def send_regularly(self, chat_link, text, interval):
     #     def is_reply_to_me(client, message):
