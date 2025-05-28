@@ -97,6 +97,10 @@ class ChannelCopier:
             )(self.parse_command)
         )
 
+        dialogs = []
+        async for dialog in self.app.get_dialogs():
+            dialogs.append(dialog.chat.id)
+
         # Keep running
         await self.idle()
 
@@ -209,6 +213,7 @@ class ChannelCopier:
     async def copy_content(
         self, customer_id, src_link, cur=0, dest_link=None, safe=False
     ):
+
         try:
             src_chann = await self.resolve_channel_id(src_link)
         except Exception as e:
