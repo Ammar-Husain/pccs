@@ -546,6 +546,7 @@ class ChannelCopier:
             src_chann = await self.resolve_channel_id(chann_link)
         except:
             await self.app.send_message(customer_id, "Chat not found")
+            return
         else:
             await self.app.send_message(customer_id, "Chat Found, Exctracting content")
 
