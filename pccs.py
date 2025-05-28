@@ -80,9 +80,9 @@ class ChannelCopier:
             print("Bot started successfully!")
             print("The Bot is awaiting for commands from the master")
 
-            # await self.app.send_message(
-            #     MASTER_CHAT_USERNAME, "Listening for commands here"
-            # )
+            await self.app.send_message(
+                MASTER_CHAT_USERNAME, "Listening for commands here"
+            )
 
         except ConnectionError:
             print("ConnectionError:", e)
@@ -791,9 +791,6 @@ async def main():
     copier = ChannelCopier()
     try:
         await copier.start()
-
-    except ChannelInvalid:
-        print("Error: Not a member of the source channel.")
 
     except KeyboardInterrupt:
         print("\nBot stopped by user")
