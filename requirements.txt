@@ -1,5 +1,5 @@
-# pyrogram
-git+https://github.com/Ammar-Husain/pyrogrammar.git#egg=pyrogrammar
+# git+https://github.com/Ammar-Husain/pyrogrammar.git#egg=pyrogrammar
+pyrofork
 tgcrypto
 python-dotenv
 tqdm
