@@ -72,6 +72,26 @@ class ChannelCopier:
         self.state = {}
         self.advertising = False
 
+    @staticmethod
+    def allow_cancellation(func):
+        async def wrapper(*args, **kwargs):
+            try:
+                return await func(*args, **kwargs)
+            except asyncio.CancelledError:
+                for arg in args:
+                    if isinstance(arg, Message):
+                        command_message = arg
+                for arg in kwargs:
+                    if isinstance(kwargs[arg], Message):
+                        command_message = kwargs[arg]
+
+                print("a task has been cancelled")
+                await command_message.reply_text(
+                    "this task has been cancelled", quote=True
+                )
+
+        return wrapper
+
     async def start(self):
         print("program started")
         try:
@@ -109,15 +129,19 @@ class ChannelCopier:
 
         if message.document and "pickled" in message.document.file_name:
             task_id = str(self.tasks_count + 1)
+
+            task = asyncio.create_task(self.file_to_channel(message))
+            task.add_done_callback(
+                lambda _: task_id in self.state and self.state.pop(task_id)
+            )
+
+            self.tasks_count += 1
             self.state[task_id] = {
                 "type": "file_to_channel",
                 "target": message.document.file_name,
                 "started": datetime.now(),
+                "task": task,
             }
-            self.tasks_count += 1
-
-            await self.file_to_channel(message)
-            self.state.pop(task_id)
 
             return
 
@@ -131,9 +155,9 @@ class ChannelCopier:
             return
 
         if command[:2] == "sc":
-            task = command[3:]
+            target = command[3:]
             if "|" in command:
-                params = task.split("|")
+                params = target.split("|")
                 if not len(params) == 4:
                     await message.reply(
                         "the sc command must be in the form `***sc src_link|cur|dest_link|safe` or `***sc src_link`"
@@ -150,49 +174,62 @@ class ChannelCopier:
                     )
 
                 task_id = str(self.tasks_count + 1)
+                task = asyncio.create_task(
+                    self.copy_content(message, src_chann, cur, dest_chann, safe)
+                )
+                task.add_done_callback(
+                    lambda _: task_id in self.state and self.state.pop(task_id)
+                )
 
+                self.tasks_count += 1
                 self.state[task_id] = {
                     "type": "copy content",
                     "target": src_chann,
                     "started": datetime.now(),
+                    "task": task,
                 }
-                self.tasks_count += 1
-
-                await self.copy_content(
-                    message.from_user.id, src_chann, cur, dest_chann, safe
-                )
-
-                self.state.pop(task_id)
 
             else:
                 task_id = str(self.tasks_count + 1)
+                task = asyncio.create_task(self.copy_content(message, target))
+                task.add_done_callback(
+                    lambda _: task_id in self.state and self.state.pop(task_id)
+                )
 
+                self.tasks_count += 1
                 self.state[task_id] = {
                     "type": "copy content",
-                    "target": task,
+                    "target": target,
                     "started": datetime.now(),
+                    "task": task,
                 }
-                self.tasks_count += 1
-
-                await self.copy_content(message.from_user.id, task)
-
-                self.state.pop(task_id)
 
         elif command[:2] == "ec":
             link = command[3:]
             task_id = str(self.tasks_count + 1)
+            task = asyncio.create_task(self.channel_to_file(link, message))
+            task.add_done_callback(
+                lambda _: task_id in self.state and self.state.pop(task_id)
+            )
+
+            self.tasks_count += 1
             self.state[task_id] = {
                 "type": "channel_to_file",
                 "target": link,
                 "started": datetime.now(),
+                "task": task,
             }
-            self.tasks_count += 1
-
-            await self.extract_messages(link, message.from_user.id)
-            self.state.pop(task_id)
 
         elif command[:5] == "state":
             await self.get_state(message)
+
+        elif command[:4] == "kill":
+            if len(command) == 4:
+                await message.reply(
+                    "You must specify the id of the task to kill", qoute=True
+                )
+            task_id = command[4:]
+            await self.kill_task(message, task_id)
 
         elif command[:2] == "sr":
             print("send regulary")
@@ -210,24 +247,24 @@ class ChannelCopier:
         else:
             await message.reply("Invalid command", quote=True)
 
+    @allow_cancellation
     async def copy_content(
-        self, customer_id, src_link, cur=0, dest_link=None, safe=False
+        self, command_message, src_link, cur=0, dest_link=None, safe=False
     ):
 
         try:
             src_chann = await self.resolve_channel_id(src_link)
         except Exception as e:
             print(f"Failed to resolve source channel: {e}")
-            await self.app.send_message(
-                customer_id, f"Failed to resolve source channel\n{e}"
+            await command_message.reply_text(
+                f"Failed to resolve source channel\n{e}", quote=True
             )
             return
 
         print(f"Source channel ID: {src_chann.id}")
 
-        await self.app.send_message(
-            customer_id,
-            f"Task recived, source channel found, starting Copying Process from {cur}...",
+        await command_message.reply_text(
+            f"Task recived, source channel found, starting Copying Process from {cur}..."
         )
         if dest_link:
             try:
@@ -235,16 +272,15 @@ class ChannelCopier:
                 msg = await self.app.send_message(dest_chann.id, ".")
                 await msg.delete()
             except ChatAdminRequired:
-                await self.app.send_message(
-                    customer_id,
-                    "You must have write permissions in destination channel",
+                await command_message.reply_text(
+                    "You must have write permissions in destination channel"
                 )
                 return
 
             except Exception as e:
                 print(f"Failed to resolve destination channel\n{e}")
-                await self.app.send_message(
-                    customer_id, f"Failed to resolve destination channel\n{e}"
+                await command_message.reply_text(
+                    f"Failed to resolve destination channel\n{e}"
                 )
                 return
 
@@ -257,30 +293,19 @@ class ChannelCopier:
 
         print(f"Destination channel ID: {dest_chann.id}")
 
-        await self.app.send_message(
-            customer_id,
-            f"Mission Strarted, you can follow up here {dest_chann.invite_link}",
+        await command_message.reply_text(
+            f"Mission Strarted, you can follow up here {dest_chann.invite_link}"
         )
 
-        bar_message = await self.app.send_message(
-            customer_id,
-            "Progress Bar",
-        )
+        bar_message = await command_message.reply_text("Progress Bar")
 
         await self.archive_existing_videos(
-            customer_id,
-            src_chann.id,
-            cur,
-            dest_chann.id,
-            safe,
-            bar_message.id,
-            bar_message.date,
+            src_chann.id, cur, dest_chann.id, safe, bar_message
         )
 
         print("Mission Completed")
-        await self.app.send_message(
-            customer_id,
-            f"Mission Completed, here you are {dest_chann.invite_link}",
+        await command_message.reply_text(
+            f"Mission Completed, here you are {dest_chann.invite_link}"
         )
 
     async def resolve_channel_id(self, link):
@@ -423,47 +448,33 @@ class ChannelCopier:
 
     async def archive_existing_videos(
         self,
-        customer_id,
         src_id,
         cur,
         dest_id,
         safe,
-        bar_message_id,
-        bar_message_time,
+        bar_message,
     ):
         print("Archiving historical videos...")
         src_chann = await self.app.get_chat(src_id)
 
         if src_chann.has_protected_content:
-            await self.archive_protected(
-                customer_id,
-                src_id,
-                cur,
-                dest_id,
-                safe,
-                bar_message_id,
-                bar_message_time,
-            )
+            await self.archive_protected(src_id, cur, dest_id, safe, bar_message)
         else:
-            # await self.archive_non_protected(src_id, cur, dest_id, customer_id, bar_message_id, bar_message_time)
+            # await self.archive_non_protected(src_id, cur, dest_id, bar_message)
             await self.app.edit_message_text(
-                customer_id,
-                bar_message_id,
+                bar_message.chat.id,
+                bar_message.id,
                 "No need for a bar, channel is not protected, just chill a little bit",
             )
-            await self.archive_non_protected(
-                customer_id, src_id, cur, dest_id, bar_message_id, bar_message_time
-            )
+            await self.archive_non_protected(src_id, cur, dest_id, bar_message)
 
     async def archive_protected(
         self,
-        customer_id,
         src_id,
         cur,
         dest_id,
         safe,
-        bar_message_id,
-        bar_message_time,
+        bar_message,
     ):
         video_messages_or_ids = []
 
@@ -473,8 +484,8 @@ class ChannelCopier:
                     video_messages_or_ids.append(message.id)
 
             await self.app.edit_message_text(
-                customer_id,
-                bar_message_id,
+                bar_message.chat.id,
+                bar_message.id,
                 "Safe mode is on, this give higher stability, but If you were kicked, it is the end",
             )
         else:  # store the whole message
@@ -483,8 +494,8 @@ class ChannelCopier:
                     video_messages_or_ids.append(message)
 
             await self.app.edit_message_text(
-                customer_id,
-                bar_message_id,
+                bar_message.chat.id,
+                bar_message.id,
                 "non-safe mode is on, Messages Objects Copied 100%",
             )
 
@@ -493,8 +504,8 @@ class ChannelCopier:
         if cur:
             if cur >= videos_count:
                 await self.app.edit_message_text(
-                    customer_id,
-                    bar_message_id,
+                    bar_message.chat.id,
+                    bar_message.id,
                     f"""
                     cur is the video the transfer stop in the last time, it must be less than total videos numbers
                     cur was {cur}, the source channel contain {videos_count} videos
@@ -509,7 +520,7 @@ class ChannelCopier:
             await asyncio.sleep(random.uniform(2, 5))
             await self.download_and_upload(video_message, src_id, dest_id)
 
-            elapsed = (datetime.now() - bar_message_time).seconds
+            elapsed = (datetime.now() - bar_message.date).seconds
             bar = tqdm.format_meter(
                 n=i + 1,
                 total=videos_count,
@@ -517,11 +528,9 @@ class ChannelCopier:
                 prefix="Downloading",
                 unit="video",
             )
-            await self.app.edit_message_text(customer_id, bar_message_id, bar)
+            await self.app.edit_message_text(bar_message.chat.id, bar_message.id, bar)
 
-    async def archive_non_protected(
-        self, customer_id, src_id, cur, dest_id, bar_message_id, bar_message_time
-    ):
+    async def archive_non_protected(self, src_id, cur, dest_id, bar_message):
         # async def archive_non_protected(self, src_id, cur, dest_id):
         video_ids = []
         async for message in self.app.get_chat_history(src_id):
@@ -531,8 +540,8 @@ class ChannelCopier:
         if cur:
             if cur >= len(video_ids):
                 await self.app.edit_message_text(
-                    customer_id,
-                    bar_message_id,
+                    bar_message.chat.id,
+                    bar_message.id,
                     f"""
                     cur is the video the transfer stop in the last time, it must be less than total videos numbers
                     cur was {cur}, the source channel contain {videos_count} videos
@@ -549,7 +558,7 @@ class ChannelCopier:
             except FloodWait as e:
                 print(f"Flood wait: {e.value} seconds")
                 await self.app.send_message(
-                    dest_id, f"FloodWait: {e.value//60}:{e.value%60}\n{e}"
+                    "me", f"FloodWait: {e.value//60}:{e.value%60}\n{e}"
                 )
 
                 await asyncio.sleep(e.value + 1)
@@ -571,7 +580,7 @@ class ChannelCopier:
         #             chunk,
         #         )
         #
-        #         elapsed = (datetime.now() - bar_message_time).seconds
+        #         elapsed = (datetime.now() - bar_message.date).seconds
         #         bar = tqdm.format_meter(
         #             n=i + 1,
         #             total=len(messages_chunks),
@@ -579,7 +588,7 @@ class ChannelCopier:
         #             prefix="Forwarding",
         #             unit="chunk",
         #         )
-        #         await self.app.edit_message_text(customer_id, bar_message_id, bar)
+        #         await self.app.edit_message_text(bar_message.chat.id, bar_message.id, bar)
         #
         # except FloodWait as e:
         #     print(f"Flood wait: {e.value} seconds")
@@ -591,14 +600,15 @@ class ChannelCopier:
         #         chunk,
         #     )
 
-    async def extract_messages(self, chann_link, customer_id):
+    @allow_cancellation
+    async def channel_to_file(self, chann_link, command_message):
         try:
             src_chann = await self.resolve_channel_id(chann_link)
         except:
-            await self.app.send_message(customer_id, "Chat not found")
+            await command_message.reply_text("Chat not found")
             return
         else:
-            await self.app.send_message(customer_id, "Chat Found, Exctracting content")
+            await command_message.reply_text("Chat Found, Exctracting content")
 
         messages = []
         async for message in self.app.get_chat_history(src_chann.id):
@@ -610,13 +620,14 @@ class ChannelCopier:
             pickle.dump(messages, f)
 
         try:
-            await self.app.send_document(customer_id, file_name)
+            await self.app.send_document(command_message.chat.id, file_name)
         except Exception as e:
-            await self.app.send_message(customer_id, f"Error sending file, {e}")
+            await command_message.reply_text(f"Error sending file, {e}")
 
         if os.path.exists(file_name):
             os.remove(file_name)
 
+    @allow_cancellation
     async def file_to_channel(self, command_message: Message):
         print("a file to channel process started")
         if not command_message.document:
@@ -742,6 +753,29 @@ class ChannelCopier:
         if not len(self.state):
             state += "No Tasks are running"
         await message.reply_text(state, quote=True)
+
+    async def kill_task(self, message, task_id):
+        if not task_id.isnumeric():
+            await message.reply_text(
+                "Kill command must be in the form '***killn', where n is a numeric value.",
+                quote=True,
+            )
+            return
+
+        if not task_id in self.state:
+            if int(task_id) <= self.tasks_count:
+                await message.reply(
+                    "This task is done or has been killed already", quote=True
+                )
+            else:
+                await message.reply(
+                    f"Task not found, No task has the id of {task_id} yet, use state command to see the currently running tasks",
+                    quote=True,
+                )
+            return
+
+        task = self.state[task_id]["task"]
+        task.cancel()
 
     # async def send_regularly(self, chat_link, text, interval):
     #     def is_reply_to_me(client, message):
