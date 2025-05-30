@@ -68,7 +68,7 @@ class ChannelCopier:
             api_hash=API_HASH,
             session_string=SESSION_STRING or None,
             in_memory=bool(SESSION_STRING),  # Important for mobile devices
-            sleep_threshold=0,
+            sleep_threshold=60,
         )
         self.tasks_count = 0
         self.state = {}
