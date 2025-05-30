@@ -2,7 +2,8 @@ import asyncio
 import os
 import pickle
 import random
-from datetime import datetime, timedelta
+import re
+from datetime import datetime, timedelta, timezone
 from itertools import islice
 
 import dotenv
@@ -71,6 +72,7 @@ class ChannelCopier:
         )
         self.tasks_count = 0
         self.state = {}
+        self.tz = timezone(timedelta(hours=2))
         self.advertising = False
 
     @staticmethod
@@ -140,7 +142,7 @@ class ChannelCopier:
             self.state[task_id] = {
                 "type": "file_to_channel",
                 "target": message.document.file_name,
-                "started": datetime.now(),
+                "started": datetime.now(self.tz),
                 "task": task,
             }
 
@@ -186,7 +188,7 @@ class ChannelCopier:
                 self.state[task_id] = {
                     "type": "copy content",
                     "target": src_chann,
-                    "started": datetime.now(),
+                    "started": datetime.now(self.tz),
                     "task": task,
                 }
 
@@ -201,7 +203,7 @@ class ChannelCopier:
                 self.state[task_id] = {
                     "type": "copy content",
                     "target": target,
-                    "started": datetime.now(),
+                    "started": datetime.now(self.tz),
                     "task": task,
                 }
 
@@ -217,7 +219,7 @@ class ChannelCopier:
             self.state[task_id] = {
                 "type": "channel_to_file",
                 "target": link,
-                "started": datetime.now(),
+                "started": datetime.now(self.tz),
                 "task": task,
             }
 
@@ -299,7 +301,7 @@ class ChannelCopier:
         )
 
         bar_message = await command_message.reply_text("Progress Bar")
-
+        await bar_message.pin(both_sides=True)
         await self.archive_existing_videos(
             src_chann.id, cur, dest_chann.id, safe, bar_message
         )
@@ -346,7 +348,7 @@ class ChannelCopier:
             await asyncio.sleep(e.value)
             return await self.create_destination_channel(title)
 
-    async def download_and_upload(self, message_or_id, src_id, dest_id):
+    async def download_and_upload(self, message_or_id, src_id, dest_id, bar_message):
         if isinstance(message_or_id, int):
             message = await self.app.get_messages(src_id, message_or_id)
         elif isinstance(message_or_id, Message):
@@ -386,7 +388,9 @@ class ChannelCopier:
                     dest_id, f"Failed to download video of id {message.id}, retrying..."
                 )
                 await asyncio.sleep(random.uniform(2, 5))
-                return await self.download_and_upload(message, src_id, dest_id)
+                return await self.download_and_upload(
+                    message, src_id, dest_id, bar_message
+                )
 
             print(f"video of id {message.id} has been downloaded successfully")
             # Create caption and other metadata
@@ -408,20 +412,19 @@ class ChannelCopier:
             print(f"Flood wait: {e.value}s")
             try:
                 wait_period = timedelta(seconds=e.value)
-                now = datetime.now()
+                now = datetime.now(self.tz)
                 end_time = (now + wait_period).strftime("%H:%M:%S")
-                await self.app.send_message(
-                    "me",
-                    f"""FloodWait: {wait_period.seconds//60}:{wait_period.seconds%60}, effectively ends at {end_time}
-                    encountered while processing message of id {message.id}
-                    {e}""",
+                cause = re.search(r"(\(.+\))", e).group(1)
+                await bar_message.edit_text(
+                    bar_message.text
+                    + f"\nFloodWaited for {wait_period.seconds//60}:{wait_period.seconds%60}, until {end_time},  {cause}, last_message_id: {message.id}",
                 )
 
             except:
                 pass
             sleep_time = e.value if e.value > 10 else e.value * 3
             await asyncio.sleep(sleep_time)
-            await self.download_and_upload(message, src_id, dest_id)
+            await self.download_and_upload(message, src_id, dest_id, bar_message)
 
         except FileReferenceExpired:
             print("expired file")
@@ -445,7 +448,7 @@ class ChannelCopier:
                 pass
 
             # await asyncio.sleep(3)
-            # return await self.download_and_upload(message, src_id, dest_id)
+            # return await self.download_and_upload(message, src_id, dest_id, bar_message)
 
         else:
             if video_path and os.path.exists(video_path):
@@ -525,7 +528,7 @@ class ChannelCopier:
 
         for i, video_message in enumerate(video_messages_or_ids):
             await asyncio.sleep(random.uniform(2, 5))
-            await self.download_and_upload(video_message, src_id, dest_id)
+            await self.download_and_upload(video_message, src_id, dest_id, bar_message)
 
             elapsed = (datetime.now() - bar_message.date).seconds
             bar = tqdm.format_meter(
@@ -564,14 +567,13 @@ class ChannelCopier:
                 await self.app.forward_messages(dest_id, src_id, video_message_id)
             except (FloodWait, FloodPremiumWait) as e:
                 wait_period = timedelta(seconds=e.value)
-                now = datetime.now()
+                now = datetime.now(self.tz)
                 end_time = (now + wait_period).strftime("%H:%M:%S")
-
+                cause = re.search(r"(\(.+\))", e)
                 print(f"Flood wait: {e.value} seconds")
                 await bar_message.reply_text(
-                    f"""FloodWait: {wait_period.seconds//60}:{wait_period.seconds%60}, effectively ends at {end_time}
-                    encountered while processing message of id {video_message_id}
-                    {e}"""
+                    f"FloodWait: {wait_period.seconds//60}:{wait_period.seconds%60}, Ends {end_time}, last message id:{video_message_id}, {cause}",
+                    qoute=True,
                 )
 
                 await asyncio.sleep(e.value + 1)
@@ -593,7 +595,7 @@ class ChannelCopier:
         #             chunk,
         #         )
         #
-        #         elapsed = (datetime.now() - bar_message.date).seconds
+        #         elapsed = (datetime.now(self.tz) - bar_message.date).seconds
         #         bar = tqdm.format_meter(
         #             n=i + 1,
         #             total=len(messages_chunks),
@@ -606,11 +608,11 @@ class ChannelCopier:
         # except FloodWait as e:
         #     print(f"Flood wait: {e.value} seconds")
         #         wait_period = timedelta(seconds=e.value)
-        #         now = datetime.now()
+        #         now = datetime.now(self.tz)
         #         end_time = (now + wait_period).strftime("%H:%M:%S")
-        #
+        #         cause = re.search(r"(\(.+\))", e)
         #         await bar_message.reply_text(
-        #             f"FloodWait: {wait_period.seconds//60}:{wait_period.seconds%60}, effectively end at {end_time}\n{e}"
+        #             f"FloodWait: {wait_period.seconds//60}:{wait_period.seconds%60}, Ends {end_time}, {cause}", quote=True
         #         )
         #     await asyncio.sleep(e.value)
         #     await self.app.forward_messages(
@@ -717,12 +719,15 @@ class ChannelCopier:
         )
 
         bar_message = await command_message.reply("Progress Bar")
+        await bar_message.pin(both_sides=True)
         messages_count = len(messages)
         expireds = 0
         for i, message in enumerate(messages):
             try:
                 if message.video or message.photo:
-                    await self.download_and_upload(message, None, dest_chann.id)
+                    await self.download_and_upload(
+                        message, None, dest_chann.id, bar_message
+                    )
 
                 elif message.text:
                     await self.app.send_message(dest_chann.id, message.text)
@@ -768,16 +773,10 @@ class ChannelCopier:
         )
 
     async def get_state(self, message):
-        state = f"tasks count is {self.tasks_count}\n"
+        state = f"tasks count is {self.tasks_count}.\n"
         for k in self.state:
             task = self.state[k]
-            task_str = f"""
-                task{k}:
-                type: {task["type"]}
-                target: {task["target"]}
-                started: {task["started"]}
-                \n
-                """
+            task_str = f"\n\ttask{k}:\n\ttype: {task["type"]}\n\ttarget: {task["target"]}\n\tstarted: {task["started"]}"
             state += task_str
 
         if not len(self.state):
@@ -799,7 +798,7 @@ class ChannelCopier:
                 )
             else:
                 await message.reply(
-                    f"Task not found, No task has the id of {task_id} yet, use state command to see the currently running tasks",
+                    f"Task not found, No task has the id of {task_id} yet, use state command to see the currently running tasks.",
                     quote=True,
                 )
             return
