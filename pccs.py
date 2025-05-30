@@ -412,7 +412,7 @@ class ChannelCopier:
                 end_time = (now + wait_period).strftime("%H:%M:%S")
                 await self.app.send_message(
                     "me",
-                    f"""FloodWait: {wait_period.second//60}:{wait_period.second%60}, effectively ends at {end_time}
+                    f"""FloodWait: {wait_period.seconds//60}:{wait_period.seconds%60}, effectively ends at {end_time}
                     encountered while processing message of id {message.id}
                     {e}""",
                 )
@@ -569,7 +569,7 @@ class ChannelCopier:
 
                 print(f"Flood wait: {e.value} seconds")
                 await bar_message.reply_text(
-                    f"""FloodWait: {wait_period.second//60}:{wait_period.second%60}, effectively ends at {end_time}
+                    f"""FloodWait: {wait_period.seconds//60}:{wait_period.seconds%60}, effectively ends at {end_time}
                     encountered while processing message of id {video_message_id}
                     {e}"""
                 )
@@ -610,7 +610,7 @@ class ChannelCopier:
         #         end_time = (now + wait_period).strftime("%H:%M:%S")
         #
         #         await bar_message.reply_text(
-        #             f"FloodWait: {wait_period.second//60}:{wait_period.second%60}, effectively end at {end_time}\n{e}"
+        #             f"FloodWait: {wait_period.seconds//60}:{wait_period.seconds%60}, effectively end at {end_time}\n{e}"
         #         )
         #     await asyncio.sleep(e.value)
         #     await self.app.forward_messages(
