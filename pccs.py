@@ -414,7 +414,7 @@ class ChannelCopier:
                 wait_period = timedelta(seconds=e.value)
                 now = datetime.now(self.tz)
                 end_time = (now + wait_period).strftime("%H:%M:%S")
-                cause = re.search(r"(\(.+\))", e).group(1)
+                cause = re.search(r"(\(.+\))", str(e)).group(1)
                 await bar_message.edit_text(
                     bar_message.text
                     + f"\nFloodWaited for {wait_period.seconds//60}:{wait_period.seconds%60}, until {end_time},  {cause}, last_message_id: {message.id}",
@@ -569,7 +569,7 @@ class ChannelCopier:
                 wait_period = timedelta(seconds=e.value)
                 now = datetime.now(self.tz)
                 end_time = (now + wait_period).strftime("%H:%M:%S")
-                cause = re.search(r"(\(.+\))", e)
+                cause = re.search(r"(\(.+\))", str(e))
                 print(f"Flood wait: {e.value} seconds")
                 await bar_message.reply_text(
                     f"FloodWait: {wait_period.seconds//60}:{wait_period.seconds%60}, Ends {end_time}, last message id:{video_message_id}, {cause}",
@@ -610,7 +610,7 @@ class ChannelCopier:
         #         wait_period = timedelta(seconds=e.value)
         #         now = datetime.now(self.tz)
         #         end_time = (now + wait_period).strftime("%H:%M:%S")
-        #         cause = re.search(r"(\(.+\))", e)
+        #         cause = re.search(r"(\(.+\))", str(e))
         #         await bar_message.reply_text(
         #             f"FloodWait: {wait_period.seconds//60}:{wait_period.seconds%60}, Ends {end_time}, {cause}", quote=True
         #         )
