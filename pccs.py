@@ -3,6 +3,8 @@ import os
 import pickle
 import random
 import re
+import signal
+import sys
 from datetime import datetime, timedelta, timezone
 from itertools import islice
 
@@ -75,6 +77,13 @@ class ChannelCopier:
         self.tz = timezone(timedelta(hours=2))
         self.advertising = False
 
+        self.shutdown_event = asyncio.Event()
+        handle_sigterm = lambda _, __: asyncio.get_event_loop().call_soon_threadsafe(
+            self.shutdown_event.set
+        )
+        signal.signal(signal.SIGTERM, handle_sigterm)
+        signal.signal(signal.SIGINT, handle_sigterm)
+
     @staticmethod
     def allow_cancellation(func):
         async def wrapper(*args, **kwargs):
@@ -99,6 +108,7 @@ class ChannelCopier:
         print("program started")
         try:
             await self.app.start()
+            print("Bot is running. Press Ctrl+C to stop.")
 
             # dailogs = []
             # async for dialog in self.app.get_dialogs():
@@ -115,8 +125,6 @@ class ChannelCopier:
             print("ConnectionError:", e)
         except (FloodWait, FloodPremiumWait) as e:
             await self.app.send_message("me", e)
-            await asyncio.sleep(e.value + 1)
-            await self.app.send_message(MASTER_CHAT_USERNAME, "Flood wait ends")
 
         self.app.add_handler(
             self.app.on_message(
@@ -842,9 +850,8 @@ class ChannelCopier:
     #             await asyncio.sleep(interval)
 
     async def idle(self):
-        print("Bot is running. Press Ctrl+C to stop.")
-        while True:
-            await asyncio.sleep(3600)  # 1 hour
+        await self.shutdown_event.wait()
+        await self.stop()
 
     async def stop(self):
         try:
@@ -852,7 +859,11 @@ class ChannelCopier:
         except Exception as e:
             print(e)
 
+        for task in self.state:
+            task["task"].cancel()
+
         await self.app.stop()
+        sys.exit(0)
 
 
 async def main():
@@ -860,15 +871,13 @@ async def main():
     try:
         await copier.start()
 
-    except KeyboardInterrupt:
-        print("\nBot stopped by user")
-
     except Exception as e:
         print(f"Fatal error: {e}")
         await copier.app.send_message(MASTER_CHAT_USERNAME, f"an Error: {e}")
 
     finally:
-        await copier.stop()
+        if copier.app.is_connected:
+            await copier.stop()
 
 
 if __name__ == "__main__":
