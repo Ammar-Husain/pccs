@@ -2,7 +2,7 @@ import asyncio
 import os
 import pickle
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 from itertools import islice
 
 import dotenv
@@ -12,6 +12,7 @@ from pyrogram.errors import (
     ChannelInvalid,
     ChatAdminRequired,
     FileReferenceExpired,
+    FloodPremiumWait,
     FloodWait,
 )
 from pyrogram.types import ChatPreview, Message
@@ -110,7 +111,7 @@ class ChannelCopier:
 
         except ConnectionError:
             print("ConnectionError:", e)
-        except FloodWait as e:
+        except (FloodWait, FloodPremiumWait) as e:
             await self.app.send_message("me", e)
             await asyncio.sleep(e.value + 1)
             await self.app.send_message(MASTER_CHAT_USERNAME, "Flood wait ends")
@@ -340,7 +341,7 @@ class ChannelCopier:
 
             return new_channel.id
 
-        except FloodWait as e:
+        except (FloodWait, FloodPremiumWait) as e:
             print(f"Waiting {e.value} seconds before retrying...")
             await asyncio.sleep(e.value)
             return await self.create_destination_channel(title)
@@ -403,12 +404,17 @@ class ChannelCopier:
             )
 
             print(f"video of id {message.id} has been uploaded successfully")
-        except FloodWait as e:
+        except (FloodWait, FloodPremiumWait) as e:
             print(f"Flood wait: {e.value}s")
             try:
+                wait_period = timedelta(seconds=e.value)
+                now = datetime.now()
+                end_time = (now + wait_period).strftime("%H:%M:%S")
                 await self.app.send_message(
                     "me",
-                    f"FloodWait: {e.value//60}:{e.value%60}\n{e}",
+                    f"""FloodWait: {wait_period.second//60}:{wait_period.second%60}, effectively ends at {end_time}
+                    encountered while processing message of id {message.id}
+                    {e}""",
                 )
 
             except:
@@ -419,6 +425,7 @@ class ChannelCopier:
 
         except FileReferenceExpired:
             print("expired file")
+            raise
 
         except Exception as e:
             print(f"Error copying video: {e}")
@@ -434,7 +441,7 @@ class ChannelCopier:
                 retrying
                 """,
                 )
-            except FloodWait:
+            except (FloodWait, FloodPremiumWait):
                 pass
 
             # await asyncio.sleep(3)
@@ -555,10 +562,16 @@ class ChannelCopier:
         for video_message_id in tqdm(video_ids, unit="video", desc="Forwarding"):
             try:
                 await self.app.forward_messages(dest_id, src_id, video_message_id)
-            except FloodWait as e:
+            except (FloodWait, FloodPremiumWait) as e:
+                wait_period = timedelta(seconds=e.value)
+                now = datetime.now()
+                end_time = (now + wait_period).strftime("%H:%M:%S")
+
                 print(f"Flood wait: {e.value} seconds")
-                await self.app.send_message(
-                    "me", f"FloodWait: {e.value//60}:{e.value%60}\n{e}"
+                await bar_message.reply_text(
+                    f"""FloodWait: {wait_period.second//60}:{wait_period.second%60}, effectively ends at {end_time}
+                    encountered while processing message of id {video_message_id}
+                    {e}"""
                 )
 
                 await asyncio.sleep(e.value + 1)
@@ -592,8 +605,14 @@ class ChannelCopier:
         #
         # except FloodWait as e:
         #     print(f"Flood wait: {e.value} seconds")
-        #     await self.app.send_messages(dest_id, f"FloodWait: wait {e.value//60}:{e.value%60}")
-        #     await asyncio.sleep(e.value + 3)
+        #         wait_period = timedelta(seconds=e.value)
+        #         now = datetime.now()
+        #         end_time = (now + wait_period).strftime("%H:%M:%S")
+        #
+        #         await bar_message.reply_text(
+        #             f"FloodWait: {wait_period.second//60}:{wait_period.second%60}, effectively end at {end_time}\n{e}"
+        #         )
+        #     await asyncio.sleep(e.value)
         #     await self.app.forward_messages(
         #         dest_id,
         #         src_id,
@@ -699,7 +718,7 @@ class ChannelCopier:
 
         bar_message = await command_message.reply("Progress Bar")
         messages_count = len(messages)
-
+        expireds = 0
         for i, message in enumerate(messages):
             try:
                 if message.video or message.photo:
@@ -720,6 +739,17 @@ class ChannelCopier:
                 pass
             except FileReferenceExpired:
                 await self.app.send_message(dest_chann.id, "an expired file")
+                expireds += 1
+                if expireds >= 5:
+                    await command_message.reply(
+                        f"""
+                        5 consecutive expired files were encountered, this cause process termination, here is the result {dest_chann.invite_link}
+                        """
+                    )
+                    return
+            else:
+                if expireds:
+                    expireds = 0
 
             elapsed = (datetime.now() - bar_message.date).seconds
             bar = tqdm.format_meter(
