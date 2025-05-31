@@ -433,7 +433,7 @@ class ChannelCopier:
                     bar_message.chat.id, bar_message.id
                 )
                 await bar_message.edit_text(
-                    current_bar
+                    current_bar.text
                     + f"\nFloodWaited for {wait_period.seconds//60}:{wait_period.seconds%60}, until {end_time},  {cause}, last_message_id: {message.id}",
                 )
 
