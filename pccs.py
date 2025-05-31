@@ -171,22 +171,26 @@ class ChannelCopier:
                 params = target.split("|")
                 if not len(params) == 4:
                     await message.reply(
-                        "the sc command must be in the form `***sc src_link|cur|dest_link|safe` or `***sc src_link`"
+                        "the sc command must be in the form `***sc src_link|start, end|dest_link|safe` or `***sc src_link`"
                     )
                     return
 
-                src_chann, cur, dest_chann, safe = params
+                src_chann, segment, dest_chann, safe = params
 
+                segment = segment.split(",")
                 try:
-                    cur = 0 if cur == "" else int(cur)
+                    segment = [None if i == "" else int(i.strip()) for i in segment]
                 except ValueError:
                     await message.reply(
-                        f"cur must be empty string or numeric value, {cur} was given instead"
+                        f"segment indices must be an `int` (start) or `int, int` (start, end)"
                     )
+                    return
+                if len(segment) == 1:
+                    segment.append(None)
 
                 task_id = str(self.tasks_count + 1)
                 task = asyncio.create_task(
-                    self.copy_content(message, src_chann, cur, dest_chann, safe)
+                    self.copy_content(message, src_chann, segment, dest_chann, safe)
                 )
                 task.add_done_callback(
                     lambda _: task_id in self.state and self.state.pop(task_id)
@@ -260,7 +264,12 @@ class ChannelCopier:
 
     @allow_cancellation
     async def copy_content(
-        self, command_message, src_link, cur=0, dest_link=None, safe=False
+        self,
+        command_message,
+        src_link,
+        segment=[None, None],
+        dest_link=None,
+        safe=False,
     ):
 
         try:
@@ -273,9 +282,8 @@ class ChannelCopier:
             return
 
         print(f"Source channel ID: {src_chann.id}")
-
         await command_message.reply_text(
-            f"Task recived, source channel found, starting Copying Process from {cur}..."
+            f"Task recived, source channel found, starting Copying Process from {segment[0] or 'the begining'} to {segment[1] or 'the end'}..."
         )
         if dest_link:
             try:
@@ -297,7 +305,7 @@ class ChannelCopier:
 
         else:
             dest_chann_id = await self.create_destination_channel(
-                src_chann.title + " [COPY]"
+                src_chann.title + " [C]"
             )
 
             dest_chann = await self.app.get_chat(dest_chann_id)
@@ -311,7 +319,7 @@ class ChannelCopier:
         bar_message = await command_message.reply_text("Progress Bar")
         await bar_message.pin(both_sides=True)
         await self.archive_existing_videos(
-            src_chann.id, cur, dest_chann.id, safe, bar_message
+            src_chann.id, segment, dest_chann.id, safe, bar_message
         )
 
         print("Mission Completed")
@@ -345,9 +353,7 @@ class ChannelCopier:
         # Create new private channel
 
         try:
-            new_channel = await self.app.create_channel(
-                title=title, description="Automated Private Copy"
-            )
+            new_channel = await self.app.create_channel(title=title)
 
             return new_channel.id
 
@@ -423,8 +429,11 @@ class ChannelCopier:
                 now = datetime.now(self.tz)
                 end_time = (now + wait_period).strftime("%H:%M:%S")
                 cause = re.search(r"(\(.+\))", str(e)).group(1)
+                current_bar = await self.app.get_messages(
+                    bar_message.chat.id, bar_message.id
+                )
                 await bar_message.edit_text(
-                    bar_message.text
+                    current_bar
                     + f"\nFloodWaited for {wait_period.seconds//60}:{wait_period.seconds%60}, until {end_time},  {cause}, last_message_id: {message.id}",
                 )
 
@@ -467,7 +476,7 @@ class ChannelCopier:
     async def archive_existing_videos(
         self,
         src_id,
-        cur,
+        segment,
         dest_id,
         safe,
         bar_message,
@@ -476,20 +485,20 @@ class ChannelCopier:
         src_chann = await self.app.get_chat(src_id)
 
         if src_chann.has_protected_content:
-            await self.archive_protected(src_id, cur, dest_id, safe, bar_message)
+            await self.archive_protected(src_id, segment, dest_id, safe, bar_message)
         else:
-            # await self.archive_non_protected(src_id, cur, dest_id, bar_message)
+            # await self.archive_non_protected(src_id, segment, dest_id, bar_message)
             await self.app.edit_message_text(
                 bar_message.chat.id,
                 bar_message.id,
                 "No need for a bar, channel is not protected, just chill a little bit",
             )
-            await self.archive_non_protected(src_id, cur, dest_id, bar_message)
+            await self.archive_non_protected(src_id, segment, dest_id, bar_message)
 
     async def archive_protected(
         self,
         src_id,
-        cur,
+        segment,
         dest_id,
         safe,
         bar_message,
@@ -519,20 +528,28 @@ class ChannelCopier:
 
         videos_count = len(video_messages_or_ids)
 
-        if cur:
-            if cur >= videos_count:
-                await self.app.edit_message_text(
-                    bar_message.chat.id,
-                    bar_message.id,
-                    f"""
-                    cur is the video the transfer stop in the last time, it must be less than total videos numbers
-                    cur was {cur}, the source channel contain {videos_count} videos
-                    """,
-                )
-                return
+        if segment[0] and segment[0] > videos_count:
+            await self.app.edit_message_text(
+                bar_message.chat.id,
+                bar_message.id,
+                f"""
+                You want to start with video number {segment[0]}, the whole channel contain {videos_count} videos. 
+                """,
+            )
+            return
+        if segment[1] and segment[1] > videos_count:
+            await self.app.edit_message_text(
+                bar_message.chat.id,
+                bar_message.id,
+                f"""
+                there is not video number {segment[1]} to include, the whole channel contain {vidoes_count}
+                """,
+            )
+            return
 
-            video_messages_or_ids = video_messages_or_ids[cur:]
-            videos_count = len(video_messages_or_ids)
+        start = segment[0] - 1 if not segment[0] is None else 0
+        video_messages_or_ids = video_messages_or_ids[::-1][start : segment[1]]
+        videos_count = len(video_messages_or_ids)
 
         for i, video_message in enumerate(video_messages_or_ids):
             await asyncio.sleep(random.uniform(2, 5))
@@ -548,26 +565,34 @@ class ChannelCopier:
             )
             await self.app.edit_message_text(bar_message.chat.id, bar_message.id, bar)
 
-    async def archive_non_protected(self, src_id, cur, dest_id, bar_message):
-        # async def archive_non_protected(self, src_id, cur, dest_id):
+    async def archive_non_protected(self, src_id, segment, dest_id, bar_message):
+        # async def archive_non_protected(self, src_id, segment, dest_id):
         video_ids = []
         async for message in self.app.get_chat_history(src_id):
             if message.video:
                 video_ids.append(message.id)
 
-        if cur:
-            if cur >= len(video_ids):
-                await self.app.edit_message_text(
-                    bar_message.chat.id,
-                    bar_message.id,
-                    f"""
-                    cur is the video the transfer stop in the last time, it must be less than total videos numbers
-                    cur was {cur}, the source channel contain {videos_count} videos
-                    """,
-                )
-                return
-
-            video_ids = video_ids[cur:]
+        videos_count = len(video_ids)
+        if segment[0] and segment[0] > videos_count:
+            await self.app.edit_message_text(
+                bar_message.chat.id,
+                bar_message.id,
+                f"""
+                You want to start with video number {segment[0]}, the whole channel contain {videos_count} videos. 
+                """,
+            )
+            return
+        if segment[1] and segment[1] > videos_count:
+            await self.app.edit_message_text(
+                bar_message.chat.id,
+                bar_message.id,
+                f"""
+                there is not video number {segment[1]} to include, the whole channel contain {vidoes_count}
+                """,
+            )
+            return
+        start = segment[0] - 1 if not segment[0] is None else 0
+        video_ids = video_ids[::-1][start : segment[1]]
 
         # forward messages indivisually
         for video_message_id in tqdm(video_ids, unit="video", desc="Forwarding"):
@@ -863,7 +888,7 @@ class ChannelCopier:
             task["task"].cancel()
 
         await self.app.stop()
-        sys.exit(0)
+        # sys.exit(0)
 
 
 async def main():
