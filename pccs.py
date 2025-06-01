@@ -17,6 +17,7 @@ from pyrogram.errors import (
     FileReferenceExpired,
     FloodPremiumWait,
     FloodWait,
+    InviteHashExpired,
 )
 from pyrogram.types import ChatPreview, Message
 from tqdm import tqdm
@@ -275,10 +276,8 @@ class ChannelCopier:
         try:
             src_chann = await self.resolve_channel_id(src_link)
         except Exception as e:
-            print(f"Failed to resolve source channel: {e}")
-            await command_message.reply_text(
-                f"Failed to resolve source channel\n{e}", quote=True
-            )
+            print(f"{e}")
+            await command_message.reply_text(f"{e}", quote=True)
             return
 
         print(f"Source channel ID: {src_chann.id}")
@@ -290,6 +289,8 @@ class ChannelCopier:
                 dest_chann = await self.resolve_channel_id(dest_link)
                 msg = await self.app.send_message(dest_chann.id, ".")
                 await msg.delete()
+            except FloodWait:
+                pass
             except ChatAdminRequired:
                 await command_message.reply_text(
                     "You must have write permissions in destination channel"
@@ -338,7 +339,7 @@ class ChannelCopier:
 
             return chat
         except Exception as e:
-            raise ValueError(f"Failed to resolve channel: {e}") from e
+            raise e
 
     async def create_destination_channel(self, title):
         # Check existing channels
@@ -504,8 +505,8 @@ class ChannelCopier:
         bar_message,
     ):
         video_messages_or_ids = []
-
-        if safe:  # store the ids only
+        src_invite_link = ""
+        if safe == "safe":  # store the ids only
             async for message in self.app.get_chat_history(src_id):
                 if message.video:
                     video_messages_or_ids.append(message.id)
@@ -513,7 +514,7 @@ class ChannelCopier:
             await self.app.edit_message_text(
                 bar_message.chat.id,
                 bar_message.id,
-                "Safe mode is on, this give higher stability, but If you were kicked, it is the end",
+                "Safe no kick mode is on, this give higher stability, but If you were kicked, it is the end",
             )
         else:  # store the whole message
             async for message in self.app.get_chat_history(src_id):
@@ -523,8 +524,12 @@ class ChannelCopier:
             await self.app.edit_message_text(
                 bar_message.chat.id,
                 bar_message.id,
-                "non-safe mode is on, Messages Objects Copied 100%",
+                f"non-safe mode is on, Messages Objects Copied 100% {"exiting...." if safe == "no approval" else "staying as link requires approval"}",
             )
+            if safe == "no approval":
+                src_chat = await self.app.get_chat(src_id)
+                src_invite_link = src_chat.invite_link
+                await self.app.leave_chat(src_id)
 
         videos_count = len(video_messages_or_ids)
 
@@ -553,7 +558,24 @@ class ChannelCopier:
 
         for i, video_message in enumerate(video_messages_or_ids):
             await asyncio.sleep(random.uniform(2, 5))
-            await self.download_and_upload(video_message, src_id, dest_id, bar_message)
+            try:
+                await self.download_and_upload(
+                    video_message, src_id, dest_id, bar_message
+                )
+            except FileReferenceExpired:
+                try:
+                    fresh_src = await self.resolve_channel_id(src_invite_link or src_id)
+                    segment[0] += i + 1
+                    await self.archive_protected(
+                        fresh_src.id, segment, dest_id, safe, bar_message
+                    )
+                    return
+                except InviteHashExpired:
+                    await bar_message.reply_text(
+                        "It looks like the link of the channel is no longer working.",
+                        qoute=True,
+                    )
+                    return
 
             elapsed = (datetime.now() - bar_message.date).seconds
             bar = tqdm.format_meter(
@@ -754,7 +776,6 @@ class ChannelCopier:
         bar_message = await command_message.reply("Progress Bar")
         await bar_message.pin(both_sides=True)
         messages_count = len(messages)
-        expireds = 0
         for i, message in enumerate(messages):
             try:
                 if message.video or message.photo:
@@ -777,17 +798,12 @@ class ChannelCopier:
                 pass
             except FileReferenceExpired:
                 await self.app.send_message(dest_chann.id, "an expired file")
-                expireds += 1
-                if expireds >= 5:
-                    await command_message.reply(
-                        f"""
-                        5 consecutive expired files were encountered, this cause process termination, here is the result {dest_chann.invite_link}
-                        """
-                    )
-                    return
-            else:
-                if expireds:
-                    expireds = 0
+                await command_message.reply(
+                    f"""
+                    expired file was encountered, this cause process termination, here is the result {dest_chann.invite_link}
+                    """
+                )
+                return
 
             elapsed = (datetime.now() - bar_message.date).seconds
             bar = tqdm.format_meter(
