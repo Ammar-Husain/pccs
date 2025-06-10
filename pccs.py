@@ -900,8 +900,8 @@ class ChannelCopier:
         except Exception as e:
             print(e)
 
-        for task in self.state:
-            task["task"].cancel()
+        for task_id in self.state:
+            self.state[task_id]["task"].cancel()
 
         await self.app.stop()
         # sys.exit(0)
