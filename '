@@ -1,6 +1,0 @@
-# git+https://github.com/Ammar-Husain/pyrogrammar.git#egg=pyrogrammar
-pyrofork
-# git+https://github.com/Ammar-Husain/pyrofork-fix-floodwait-catching-bugs#egg=pyrofork
-tgcrypto
-python-dotenv
-tqdm

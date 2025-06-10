@@ -242,7 +242,7 @@ class ChannelCopier:
         elif command[:4] == "kill":
             if len(command) == 4:
                 await message.reply(
-                    "You must specify the id of the task to kill", qoute=True
+                    "You must specify the id of the task to kill", quote=True
                 )
             task_id = command[4:]
             await self.kill_task(message, task_id)
@@ -573,7 +573,7 @@ class ChannelCopier:
                 except InviteHashExpired:
                     await bar_message.reply_text(
                         "It looks like the link of the channel is no longer working.",
-                        qoute=True,
+                        quote=True,
                     )
                     return
 
@@ -628,7 +628,7 @@ class ChannelCopier:
                 print(f"Flood wait: {e.value} seconds")
                 await bar_message.reply_text(
                     f"FloodWait: {wait_period.seconds//60}:{wait_period.seconds%60}, Ends {end_time}, last message id:{video_message_id}, {cause}",
-                    qoute=True,
+                    quote=True,
                 )
 
                 await asyncio.sleep(e.value + 1)
