@@ -1,7 +1,7 @@
 __pycache__/
-./my_userbot.session
-./.env
+my_userbot.session
+.env
 downloads/
 *.session
-./get_client.py
-./gifs.py
+get_client.py
+gifs.py
