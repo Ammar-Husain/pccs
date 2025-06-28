@@ -25,42 +25,16 @@ from tqdm import tqdm
 is_prod = os.getenv("PRODUCTION")
 
 if not is_prod:
-    conf = dotenv.dotenv_values()
-    API_ID = conf["API_ID"]
-    API_HASH = conf["API_HASH"]
-    SESSION_STRING = conf["SESSION_STRING"]
-    MASTER_CHAT_USERNAME = conf["MASTER_CHAT_USERNAME"]
-    print(f"SESSION STRING imported from dotenv is {SESSION_STRING}")
+    conf = dotenv.load_dotenv()
 
 
-else:
-    API_ID = os.getenv("API_ID")
-    API_HASH = os.getenv("API_HASH")
-    MASTER_CHAT_USERNAME = os.getenv("MASTER_CHAT_USERNAME")
+API_ID = os.getenv("API_ID")
+API_HASH = os.getenv("API_HASH")
+MASTER_CHAT_USERNAME = os.getenv("MASTER_CHAT_USERNAME")
+SESSION_STRING = os.getenv("SESSION_STRING")
 
-    if not MASTER_CHAT_USERNAME == "me" or MASTER_CHAT_USERNAME == "self":
-        MASTER_CHAT_USERNAME = "@" + MASTER_CHAT_USERNAME
-
-    if not dotenv.find_dotenv():
-        with open(".env", "w") as f:
-            f.write("NSS='1'")
-
-    try:
-        nss = dotenv.dotenv_values()["NSS"]
-    except KeyError:
-        nss = "1"
-
-    if nss == "1":
-        SESSION_STRING = os.getenv("SESSION_STRING1")
-        print(f"SESSION STRING 1 imported from enviroment is {SESSION_STRING}")
-        with open(dotenv.find_dotenv(), "w") as f:
-            f.write("NSS='2'")
-
-    elif nss == "2":
-        SESSION_STRING = os.getenv("SESSION_STRING2")
-        print(f"SESSION STRING 2 imported from enviroment is {SESSION_STRING}")
-        with open(dotenv.find_dotenv(), "w") as f:
-            f.write("NSS='1'")
+if not MASTER_CHAT_USERNAME == "me" or MASTER_CHAT_USERNAME == "self":
+    MASTER_CHAT_USERNAME = "@" + MASTER_CHAT_USERNAME
 
 
 class ChannelCopier:
