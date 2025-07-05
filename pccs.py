@@ -70,7 +70,7 @@ class ChannelCopier:
         self.tz = timezone(timedelta(hours=2))
         self.advertising = False
 
-        # self.shutdown_event = asyncio.Event()
+        self.shutdown_event = asyncio.Event()
         # handle_sigterm = lambda _, __: asyncio.get_event_loop().call_soon_threadsafe(
         #     self.shutdown_event.set
         # )
