@@ -4,12 +4,12 @@ import pickle
 import random
 import re
 import signal
-import sys
 from datetime import datetime, timedelta, timezone
-from itertools import islice
+from threading import Thread
 
 import dotenv
 from _pickle import UnpicklingError
+from flask import Flask
 from pyrogram import Client, enums, filters
 from pyrogram.errors import (
     ChannelInvalid,
@@ -35,6 +35,24 @@ SESSION_STRING = os.getenv("SESSION_STRING")
 
 if not MASTER_CHAT_USERNAME == "me" or MASTER_CHAT_USERNAME == "self":
     MASTER_CHAT_USERNAME = "@" + MASTER_CHAT_USERNAME
+
+
+server = Flask(__name__)
+
+
+@server.route("/", methods=["GET"])
+def greet():
+    print("Request")
+    return "Hey there"
+
+
+def flask_thread():
+    server.run("0.0.0.0", port=8000)
+    print("Server runs succefully")
+
+
+thread = Thread(target=flask_thread)
+thread.start()
 
 
 class ChannelCopier:

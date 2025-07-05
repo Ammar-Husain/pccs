@@ -4,3 +4,4 @@ git+https://github.com/Ammar-Husain/pyrofork-fix-floodwait-catching-bugs#egg=pyr
 tgcrypto
 python-dotenv
 tqdm
+flask
