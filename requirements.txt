@@ -1,6 +1,4 @@
-# git+https://github.com/Ammar-Husain/pyrogrammar.git#egg=pyrogrammar
-# pyrofork
-git+https://github.com/Ammar-Husain/pyrofork-fix-floodwait-catching-bugs#egg=pyrofork
+git+https://github.com/Ammar-Husain/pyrofork-cache-dcs-sessions.git#egg=pyrofork
 tgcrypto
 python-dotenv
 tqdm

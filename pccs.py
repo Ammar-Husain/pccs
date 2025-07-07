@@ -365,6 +365,10 @@ class ChannelCopier:
                 f"message or id must be of type int or pyrogram.types.Message, {type(message_or_id)} was given instead"
             )
 
+        if not message:
+            await self.app.send_message(MASTER_CHAT_USERNAME, "Message not Found")
+            return
+
         if not message.video and not message.photo:
             await self.app.send_message(
                 dest_id,
@@ -394,7 +398,6 @@ class ChannelCopier:
                 await self.app.send_message(
                     dest_id, f"Failed to download video of id {message.id}, retrying..."
                 )
-                await asyncio.sleep(random.uniform(2, 5))
                 return await self.download_and_upload(
                     message, src_id, dest_id, bar_message
                 )
@@ -432,8 +435,7 @@ class ChannelCopier:
 
             except:
                 pass
-            sleep_time = e.value if e.value > 10 else e.value * 3
-            await asyncio.sleep(sleep_time)
+            await asyncio.sleep(e.value)
             await self.download_and_upload(message, src_id, dest_id, bar_message)
 
         except FileReferenceExpired:
@@ -500,7 +502,7 @@ class ChannelCopier:
         src_invite_link = ""
         if safe == "safe":  # store the ids only
             async for message in self.app.get_chat_history(src_id):
-                if message.video:
+                if message.video or message.photo:
                     video_messages_or_ids.append(message.id)
 
             await self.app.edit_message_text(
@@ -510,7 +512,7 @@ class ChannelCopier:
             )
         else:  # store the whole message
             async for message in self.app.get_chat_history(src_id):
-                if message.video:
+                if message.video or message.photo:
                     video_messages_or_ids.append(message)
 
             await self.app.edit_message_text(
@@ -549,7 +551,6 @@ class ChannelCopier:
         videos_count = len(video_messages_or_ids)
 
         for i, video_message in enumerate(video_messages_or_ids):
-            await asyncio.sleep(random.uniform(2, 5))
             try:
                 await self.download_and_upload(
                     video_message, src_id, dest_id, bar_message
