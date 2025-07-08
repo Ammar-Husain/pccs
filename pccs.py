@@ -11,9 +11,14 @@ import dotenv
 from _pickle import UnpicklingError
 from flask import Flask
 from pyrogram import Client, enums, filters, types
-from pyrogram.errors import (ChannelInvalid, ChatAdminRequired,
-                             FileReferenceExpired, FloodPremiumWait, FloodWait,
-                             InviteHashExpired)
+from pyrogram.errors import (
+    ChannelInvalid,
+    ChatAdminRequired,
+    FileReferenceExpired,
+    FloodPremiumWait,
+    FloodWait,
+    InviteHashExpired,
+)
 from pyrogram.handlers import MessageHandler
 from pyrogram.types import ChatPreview, Message
 from tqdm import tqdm
@@ -110,10 +115,10 @@ class ChannelCopier:
                 MASTER_CHAT_USERNAME, "Listening for commands here"
             )
 
-        except ConnectionError:
+        except ConnectionError as e:
             print("ConnectionError:", e)
         except (FloodWait, FloodPremiumWait) as e:
-            await self.app.send_message("me", e)
+            await self.app.send_message("me", str(e))
 
         self.app.add_handler(
             MessageHandler(
@@ -567,7 +572,7 @@ class ChannelCopier:
                 try:
                     fresh_src = await self.resolve_channel_id(src_invite_link or src_id)
                     segment[0] += i - 4
-                    wawait bar_message.reply("Refreshing the link succedded")
+                    await bar_message.reply("Refreshing the link succedded")
                     await self.archive_protected(
                         fresh_src.id, segment, dest_id, safe, bar_message
                     )
