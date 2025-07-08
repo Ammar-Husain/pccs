@@ -10,15 +10,11 @@ from threading import Thread
 import dotenv
 from _pickle import UnpicklingError
 from flask import Flask
-from pyrogram import Client, enums, filters
-from pyrogram.errors import (
-    ChannelInvalid,
-    ChatAdminRequired,
-    FileReferenceExpired,
-    FloodPremiumWait,
-    FloodWait,
-    InviteHashExpired,
-)
+from pyrogram import Client, enums, filters, types
+from pyrogram.errors import (ChannelInvalid, ChatAdminRequired,
+                             FileReferenceExpired, FloodPremiumWait, FloodWait,
+                             InviteHashExpired)
+from pyrogram.handlers import MessageHandler
 from pyrogram.types import ChatPreview, Message
 from tqdm import tqdm
 
@@ -120,9 +116,11 @@ class ChannelCopier:
             await self.app.send_message("me", e)
 
         self.app.add_handler(
-            self.app.on_message(
-                filters.chat(MASTER_CHAT_USERNAME) & (filters.text | filters.document)
-            )(self.parse_command)
+            MessageHandler(
+                self.parse_command,
+                filters.chat(MASTER_CHAT_USERNAME) & (filters.text | filters.document),
+            ),
+            group=1,
         )
 
         # Keep running
@@ -396,11 +394,12 @@ class ChannelCopier:
                     )
             else:
                 await self.app.send_message(
-                    dest_id, f"Failed to download video of id {message.id}, retrying..."
+                    dest_id, f"Failed to download video of id {message.id}, skipping..."
                 )
-                return await self.download_and_upload(
-                    message, src_id, dest_id, bar_message
-                )
+                return "fail"
+                # return await self.download_and_upload(
+                #     message, src_id, dest_id, bar_message
+                # )
 
             print(f"video of id {message.id} has been downloaded successfully")
             # Create caption and other metadata
@@ -436,7 +435,7 @@ class ChannelCopier:
             except:
                 pass
             await asyncio.sleep(e.value)
-            await self.download_and_upload(message, src_id, dest_id, bar_message)
+            return await self.download_and_upload(message, src_id, dest_id, bar_message)
 
         except FileReferenceExpired:
             print("expired file")
@@ -550,15 +549,25 @@ class ChannelCopier:
         video_messages_or_ids = video_messages_or_ids[::-1][start : segment[1]]
         videos_count = len(video_messages_or_ids)
 
+        failed = 0
         for i, video_message in enumerate(video_messages_or_ids):
             try:
-                await self.download_and_upload(
+                res = await self.download_and_upload(
                     video_message, src_id, dest_id, bar_message
                 )
+                if res == "fail":
+                    skipped += 1
+                else:
+                    failed = 0
+
+                if failed == 5:
+                    raise FileReferenceExpired
+
             except FileReferenceExpired:
                 try:
                     fresh_src = await self.resolve_channel_id(src_invite_link or src_id)
-                    segment[0] += i + 1
+                    segment[0] += i - 4
+                    wawait bar_message.reply("Refreshing the link succedded")
                     await self.archive_protected(
                         fresh_src.id, segment, dest_id, safe, bar_message
                     )
@@ -848,40 +857,51 @@ class ChannelCopier:
         task = self.state[task_id]["task"]
         task.cancel()
 
-    # async def send_regularly(self, chat_link, text, interval):
-    #     def is_reply_to_me(client, message):
-    #         print(message)
-    #         replied = message.reply_to_message
-    #         if (
-    #             replied
-    #             and replied.from_user
-    #             and replied.from_user.id == message._client.me.id
-    #         ):
-    #             print("a message has been replied to")
-    #             return True
-    #         else:
-    #             return False
-    #
-    #     self.advertising = True
-    #
-    #     print(f"chat_link is {chat_link}, text is {text}, interval is {interval}")
-    #
-    #     chat = await self.app.get_chat(chat_link)
-    #
-    #     async def add_and_inform(client, message):
-    #         print("adding and informing the user", message.from_user.first_name)
-    #         # await client.add_contact(message.from_user.id, message.user.first_name)
-    #         # await message.reply("ضفتك تعال خاص", quote=True)
-    #         print("added to the contacts:", message.from_user.username)
-    #
-    #     if chat.id:
-    #         filter_ = filters.chat(chat.id)  # & filters.create(is_reply_to_me)
-    #         print("Chat id for sr is", chat.id)
-    #         self.app.add_handler(self.app.on_message(filter_)(add_and_inform))
-    #
-    #         while self.advertising:
-    #             await self.app.send_message(chat.id, text)
-    #             await asyncio.sleep(interval)
+    async def send_regularly(self, chat_link, text, interval):
+        my_id = (await self.app.get_me()).id
+
+        async def is_reply_to_me(_, __, message):
+            print("a message came")
+            replied = message.reply_to_message
+            if replied:
+                print(f"Replied to message is {replied.text}")
+                print(f"replied to message sender id: {replied.from_user.id}")
+                print(f"my id: {my_id}")
+                return bool(replied.from_user.id == my_id)
+
+        reply_to_me_filter = filters.create(is_reply_to_me)
+
+        self.advertising = True
+
+        print(f"chat_link is {chat_link}, text is {text}, interval is {interval}")
+
+        chat = await self.app.get_chat(chat_link)
+
+        async def add_and_inform(client, message):
+            print("adding and informing the user", message.from_user.first_name)
+            added = await client.add_contact(
+                message.from_user.id, message.user.first_name
+            )
+            if isinstance(added, types.User):
+                await message.reply("ضفتك تعال خاص", quote=True)
+                print("added to the contacts:", message.from_user.username)
+            else:
+                print("Fail to add")
+
+        self.app.add_handler(
+            MessageHandler(add_and_inform, reply_to_me_filter), group=-1
+        )
+
+        if not chat.id:
+            return
+
+        print("Chat id for sr is", chat.id)
+
+        message = await self.app.send_message(chat.id, text)
+        while self.advertising:
+            message = await message.reply(text)
+            sleep_time = interval + random.random() * interval
+            await asyncio.sleep(sleep_time)
 
     async def idle(self):
         await self.shutdown_event.wait()
