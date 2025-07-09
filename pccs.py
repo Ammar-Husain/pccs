@@ -561,7 +561,7 @@ class ChannelCopier:
                     video_message, src_id, dest_id, bar_message
                 )
                 if res == "fail":
-                    skipped += 1
+                    failed += 1
                 else:
                     failed = 0
 
@@ -866,12 +866,8 @@ class ChannelCopier:
         my_id = (await self.app.get_me()).id
 
         async def is_reply_to_me(_, __, message):
-            print("a message came")
             replied = message.reply_to_message
             if replied:
-                print(f"Replied to message is {replied.text}")
-                print(f"replied to message sender id: {replied.from_user.id}")
-                print(f"my id: {my_id}")
                 return bool(replied.from_user.id == my_id)
 
         reply_to_me_filter = filters.create(is_reply_to_me)
