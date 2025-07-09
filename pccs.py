@@ -315,7 +315,7 @@ class ChannelCopier:
         bar_message = await command_message.reply_text("Progress Bar")
         await bar_message.pin(both_sides=True)
         await self.archive_existing_videos(
-            src_chann.id, segment, dest_chann.id, safe, bar_message
+            src_chann.id, segment, dest_chann.id, safe, bar_message, src_link=src_link
         )
 
         print("Mission Completed")
@@ -473,18 +473,15 @@ class ChannelCopier:
                 os.remove(thumb_path)
 
     async def archive_existing_videos(
-        self,
-        src_id,
-        segment,
-        dest_id,
-        safe,
-        bar_message,
+        self, src_id, segment, dest_id, safe, bar_message, src_link=""
     ):
         print("Archiving historical videos...")
         src_chann = await self.app.get_chat(src_id)
 
         if src_chann.has_protected_content:
-            await self.archive_protected(src_id, segment, dest_id, safe, bar_message)
+            await self.archive_protected(
+                src_id, segment, dest_id, safe, bar_message, src_link=src_link
+            )
         else:
             # await self.archive_non_protected(src_id, segment, dest_id, bar_message)
             await self.app.edit_message_text(
@@ -495,12 +492,7 @@ class ChannelCopier:
             await self.archive_non_protected(src_id, segment, dest_id, bar_message)
 
     async def archive_protected(
-        self,
-        src_id,
-        segment,
-        dest_id,
-        safe,
-        bar_message,
+        self, src_id, segment, dest_id, safe, bar_message, src_link=""
     ):
         video_messages_or_ids = []
         src_invite_link = ""
@@ -525,9 +517,12 @@ class ChannelCopier:
                 f"non-safe mode is on, Messages Objects Copied 100% {"exiting...." if safe == "no approval" else "staying as link requires approval"}",
             )
             if safe == "no approval":
-                src_chat = await self.app.get_chat(src_id)
-                src_invite_link = src_chat.invite_link
-                await self.app.leave_chat(src_id)
+                if "https" in src_link:
+                    await self.app.leave_chat(src_id)
+                else:
+                    await bar_message.reply(
+                        "Not leaving because src_link is not a link"
+                    )
 
         videos_count = len(video_messages_or_ids)
 
@@ -570,11 +565,16 @@ class ChannelCopier:
 
             except FileReferenceExpired:
                 try:
-                    fresh_src = await self.resolve_channel_id(src_invite_link or src_id)
+                    fresh_src = await self.resolve_channel_id(src_link)
                     segment[0] += i - 4
                     await bar_message.reply("Refreshing the link succedded")
                     await self.archive_protected(
-                        fresh_src.id, segment, dest_id, safe, bar_message
+                        fresh_src.id,
+                        segment,
+                        dest_id,
+                        safe,
+                        bar_message,
+                        src_link=src_link,
                     )
                     return
                 except InviteHashExpired:
